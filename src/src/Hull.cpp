@@ -83,10 +83,10 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   // build the tethraedron
   // ABC->0; ABD->1; ACD->2; BCD->3
   facets.reserve(4);
-  facets.push_back(make_facet(0, 1, 2));
-  facets.push_back(make_facet(0, 1, 3));
-  facets.push_back(make_facet(0, 2, 3));
-  facets.push_back(make_facet(1, 2, 3));
+  facets.push_back(makeFacet(0, 1, 2));
+  facets.push_back(makeFacet(0, 1, 3));
+  facets.push_back(makeFacet(0, 2, 3));
+  facets.push_back(makeFacet(1, 2, 3));
 
   // setup initial connectivity
   // ABC
@@ -116,17 +116,6 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   }
 }
 
-void Replace(Facet &involved_facet, Facet &old_neigh, Facet &new_neigh) {
-  if (&old_neigh == involved_facet.Neighbour[0])
-    involved_facet.Neighbour[0] = &new_neigh;
-  else {
-    if (&old_neigh == involved_facet.Neighbour[1])
-      involved_facet.Neighbour[1] = &new_neigh;
-    else
-      involved_facet.Neighbour[2] = &new_neigh;
-  }
-};
-
 namespace {
 float facet_point_distance(const std::vector<Coordinate> &vertices,
                            const Facet &facet, const Coordinate &point) {
@@ -138,30 +127,72 @@ float facet_point_distance(const std::vector<Coordinate> &vertices,
 }
 } // namespace
 
-std::vector<bool>
-Hull::computeVisibilityFlags(const Coordinate &vertex_of_new_cone,
-                             const std::size_t starting_facet) const {
-  std::set<std::size_t> visible_group = {starting_facet};
-  std::list<std::size_t> open_set = {facets[starting_facet].neighbourAB,
-                                     facets[starting_facet].neighbourBC,
-                                     facets[starting_facet].neighbourCA};
-  while (!open_set.empty()) {
-    std::size_t to_visit = open_set.front();
-    open_set.pop_front();
-    if ((visible_group.find(to_visit) == visible_group.end()) &&
-        (facet_point_distance(vertices, facets[to_visit], vertex_of_new_cone) >
-         HULL_GEOMETRIC_TOLLERANCE)) {
-      visible_group.emplace(to_visit);
-      open_set.push_back(facets[to_visit].neighbourAB);
-      open_set.push_back(facets[to_visit].neighbourBC);
-      open_set.push_back(facets[to_visit].neighbourCA);
+void Hull::update(const Coordinate& vertex_of_new_cone) {
+    // find first visible facet
+    std::size_t pos = 0;
+    for (const auto& facet : facets) {
+        if (facet_point_distance(vertices, facet, vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+            this->update_(vertex_of_new_cone, pos);
+            return;
+        }
+        ++pos;
     }
-  }
-  std::vector<bool> flags(facets.size(), false);
-  for (const auto index : visible_group) {
-    flags[index] = true;
-  }
-  return flags;
+    throw Error{ "Vertex passed to update hull is not outside it" };
+}
+
+void Hull::update(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet_for_expansion) {
+    if (facets.size() <= starting_facet_for_expansion) {
+        throw Error{ "Out of bounds facet index" };
+    }
+    if (facet_point_distance(vertices, facets[starting_facet_for_expansion], vertex_of_new_cone) <= HULL_GEOMETRIC_TOLLERANCE) {
+        throw Error{ "The specified starting facet is not valid" };
+    }
+    this->update_(vertex_of_new_cone, starting_facet_for_expansion);
+}
+
+std::vector<bool>
+Hull::computeVisibilityFlags(const Coordinate& vertex_of_new_cone,
+    const std::size_t starting_facet) const {
+    std::set<std::size_t> visible_group = { starting_facet };
+    std::list<std::size_t> open_set = { facets[starting_facet].neighbourAB,
+                                       facets[starting_facet].neighbourBC,
+                                       facets[starting_facet].neighbourCA };
+    while (!open_set.empty()) {
+        std::size_t to_visit = open_set.front();
+        open_set.pop_front();
+        if ((visible_group.find(to_visit) == visible_group.end()) &&
+            (facet_point_distance(vertices, facets[to_visit], vertex_of_new_cone) >
+                HULL_GEOMETRIC_TOLLERANCE)) {
+            visible_group.emplace(to_visit);
+            open_set.push_back(facets[to_visit].neighbourAB);
+            open_set.push_back(facets[to_visit].neighbourBC);
+            open_set.push_back(facets[to_visit].neighbourCA);
+        }
+    }
+    std::vector<bool> flags(facets.size(), false);
+    for (const auto index : visible_group) {
+        flags[index] = true;
+    }
+    return flags;
+}
+
+namespace {
+    void Replace(Facet& involved_facet, const std::size_t old_neigh_index, const std::size_t new_neigh_index) {
+        if (involved_facet.neighbourAB == old_neigh_index) {
+            involved_facet.neighbourAB = new_neigh_index;
+        }
+        else if (involved_facet.neighbourBC == old_neigh_index) {
+            involved_facet.neighbourBC = new_neigh_index;
+        }
+        else {
+            involved_facet.neighbourCA = new_neigh_index;
+        }
+    };
+}
+
+void Hull::update_(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet_for_expansion) {
+    auto visibility_flags = computeVisibilityFlags(vertex_of_new_cone, starting_facet_for_expansion);
+
 }
 
 void Hull::_UpdateHull(const Coordinate &vertex_of_new_cone,
@@ -321,39 +352,5 @@ void Hull::_UpdateHull(const Coordinate &vertex_of_new_cone,
     // notify to observer
     this->observer->AddedChangedFacets(created, changed);
   }
-}
-
-void Hull::UpdateHull(const Coordinate &vertex_of_new_cone) {
-  auto it = this->Facets.begin();
-  float distance;
-  for (it; it != this->Facets.end(); ++it) {
-    distance = it->N.x * (vertex_of_new_cone.x - it->A->x);
-    distance += it->N.y * (vertex_of_new_cone.y - it->A->y);
-    distance += it->N.z * (vertex_of_new_cone.z - it->A->z);
-    if (distance > HULL_GEOMETRIC_TOLLERANCE) {
-      this->_UpdateHull(vertex_of_new_cone, *it);
-      return;
-    }
-  }
-}
-
-void Hull::UpdateHull(const Coordinate &vertex_of_new_cone,
-                      const Facet &starting_facet_for_expansion) {
-  Facet *starting = nullptr;
-  for (auto it = this->Facets.begin(); it != this->Facets.end(); ++it) {
-    if (&starting_facet_for_expansion == &(*it)) {
-      starting = &(*it);
-      break;
-    }
-  }
-  if (nullptr == starting)
-    throw Error("the passed facet is not contained in this hull");
-  float distance = starting->N.x * (vertex_of_new_cone.x - starting->A->x);
-  distance += starting->N.y * (vertex_of_new_cone.y - starting->A->y);
-  distance += starting->N.z * (vertex_of_new_cone.z - starting->A->z);
-  if (distance <= HULL_GEOMETRIC_TOLLERANCE) {
-    throw Error("the passed facet is not visible from the passed vertex");
-  }
-  this->_UpdateHull(vertex_of_new_cone, *starting);
 }
 } // namespace hull

@@ -29,9 +29,9 @@ public:
   virtual ~Observer() = default;
 
   struct Notification {
-    std::vector<const Facet *> added;
-    std::vector<const Facet *> changed;
-    std::vector<const Facet *> removed;
+    std::vector<std::size_t> added;
+    std::vector<std::size_t> changed;
+    std::vector<Facet> removed;
   };
 
   virtual void hullChanges(const Notification &notification) = 0;
@@ -44,11 +44,10 @@ public:
 
   void setObserver(const Observer &obs);
 
-  Hull(const Hull &);
-  Hull &operator==(const Hull &);
+  void update(const Coordinate& vertex_of_new_cone);
 
   void update(const Coordinate &vertex_of_new_cone,
-              const Facet *starting_facet_for_expansion = nullptr);
+              const std::size_t starting_facet_for_expansion);
 
   const std::vector<Coordinate> &getVertices() const { return this->vertices; };
   const std::vector<Facet> &getFacets() const { return this->facets; };
@@ -56,6 +55,8 @@ public:
 private:
   void initThetraedron(const Coordinate &A, const Coordinate &B,
                        const Coordinate &C, const Coordinate &D);
+
+  void update_(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet_for_expansion);
 
   void recomputeNormal(Facet &subject) const;
 
