@@ -9,55 +9,66 @@
 
 #include <Hull/Coordinate.h>
 #include <cmath>
-#include <list>
+#include <vector>
 
 namespace hull {
-constexpr float HULL_GEOMETRIC_TOLLERANCE = static_cast<float>(1e-3);
-
 struct Facet {
-  const Coordinate *A; // pointer to vertex A
-  const Coordinate *B; // pointer to vertex B
-  const Coordinate *C; // pointer to vertex C
-  Coordinate N;        // outer normal
-  Facet *Neighbour[3]; // AB, BC, CA
-                       // cache
-  bool bVisible;       // only for update Hull
+  std::size_t vertexA;
+  std::size_t vertexB;
+  std::size_t vertexC;
+
+  std::size_t neighbourAB;
+  std::size_t neighbourBC;
+  std::size_t neighbourCA;
+
+  Coordinate normal; // outer normal
 };
 
 class Observer {
 public:
-  virtual void
-  AddedChangedFacets(const std::list<const Facet *> &added,
-                     const std::list<const Facet *> &changed) const = 0;
-  virtual void RemovedFacets(const std::list<const Facet *> &removed) const = 0;
+  virtual ~Observer() = default;
+
+  struct Notification {
+    std::vector<const Facet *> added;
+    std::vector<const Facet *> changed;
+    std::vector<const Facet *> removed;
+  };
+
+  virtual void hullChanges(const Notification &notification) = 0;
 };
 
 class Hull {
 public:
   Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
-       const Coordinate &D, const Observer *obs = nullptr);
+       const Coordinate &D);
 
-  void UpdateHull(const Coordinate &vertex_of_new_cone,
-                  const Facet &starting_facet_for_expansion);
-  void UpdateHull(const Coordinate &vertex_of_new_cone);
+  void setObserver(const Observer &obs);
 
-  inline const std::list<Coordinate> &getVertices() const {
-    return this->vertices;
-  };
-  inline const std::list<Facet> &getFacets() const { return this->Facets; };
+  Hull(const Hull &);
+  Hull &operator==(const Hull &);
+
+  void update(const Coordinate &vertex_of_new_cone,
+              const Facet *starting_facet_for_expansion = nullptr);
+
+  const std::vector<Coordinate> &getVertices() const { return this->vertices; };
+  const std::vector<Facet> &getFacets() const { return this->facets; };
 
 private:
-  void _UpdateHull(const Coordinate &vertex_of_new_cone,
-                   Facet &starting_facet_for_expansion);
+  void initThetraedron(const Coordinate &A, const Coordinate &B,
+                       const Coordinate &C, const Coordinate &D);
 
-  void AppendFacet(const Coordinate &vertexA, const Coordinate &vertexB,
-                   const Coordinate &vertexC);
-  void RecomputeNormal(Facet &facet);
+  void recomputeNormal(Facet &subject) const;
 
-  // data
-  std::list<Coordinate> vertices;
-  std::list<Facet> Facets;
+  Facet makeFacet(const std::size_t vertexA, const std::size_t vertexB,
+                  const std::size_t vertexC) const;
+
+  std::vector<bool>
+  computeVisibilityFlags(const Coordinate &vertex_of_new_cone,
+                         const std::size_t starting_facet) const;
+
+  std::vector<Coordinate> vertices;
+  std::vector<Facet> facets;
   Coordinate Mid_point;
-  const Observer *observer;
+  Observer *observer = nullptr;
 };
 } // namespace hull

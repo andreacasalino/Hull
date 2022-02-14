@@ -5,16 +5,62 @@
  * report any bug to andrecasa91@gmail.com.
  **/
 
+#include <Hull/Definitions.h>
 #include <Hull/Error.h>
 #include <Hull/Hull.h>
+#include <limits>
+#include <list>
+#include <set>
 
 namespace hull {
-constexpr float COEFF_NORMAL_DIRECTION = 1e6;
-
 Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
-           const Coordinate &D, const Observer *obs) {
-  this->observer = obs;
-  // init tethraedron and check the thetraedron has a non zero volume
+           const Coordinate &D) {
+  this->initThetraedron(A, B, C, D);
+};
+
+void Hull::recomputeNormal(Facet &subject) const {
+  Coordinate delta1, delta2;
+  diff(delta1, vertices[subject.vertexA], vertices[subject.vertexC]);
+  diff(delta2, vertices[subject.vertexB], vertices[subject.vertexC]);
+
+  cross(subject.normal, delta1, delta2);
+
+  diff(delta1, this->Mid_point, vertices[subject.vertexA]);
+  float dot_normal = dot(subject.normal, delta1);
+  if (dot_normal >= 0.f) {
+    invert(subject.normal);
+  }
+  // normalize
+  dot_normal = norm(subject.normal);
+  if (dot_normal < 1e-7) {
+    prod(subject.normal, COEFF_NORMAL_DIRECTION);
+  } else {
+    dot_normal = 1.f / dot_normal;
+    prod(subject.normal, dot_normal);
+  }
+}
+
+namespace {
+constexpr std::size_t INVALID_FACET_INDEX =
+    std::numeric_limits<std::size_t>::max();
+}
+
+Facet Hull::makeFacet(const std::size_t vertexA, const std::size_t vertexB,
+                      const std::size_t vertexC) const {
+  Facet result;
+  result.vertexA = vertexA;
+  result.vertexB = vertexB;
+  result.vertexC = vertexC;
+  recomputeNormal(result);
+  result.neighbourAB = INVALID_FACET_INDEX;
+  result.neighbourBC = INVALID_FACET_INDEX;
+  result.neighbourCA = INVALID_FACET_INDEX;
+  return result;
+}
+
+void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
+                           const Coordinate &C, const Coordinate &D) {
+  // check the thetraedron has a non zero volume
   Coordinate delta_1;
   diff(delta_1, D, A);
   Coordinate delta_2;
@@ -24,92 +70,49 @@ Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
 
   Coordinate cross_1_2;
   cross(cross_1_2, delta_1, delta_2);
-  if (abs(dot(cross_1_2, delta_3)) < HULL_GEOMETRIC_TOLLERANCE)
+  if (abs(dot(cross_1_2, delta_3)) < HULL_GEOMETRIC_TOLLERANCE) {
     throw Error("intial thetraedron volume too small: make sure the convex "
                 "shape is actually a 3d shape");
+  }
 
   // computation of the midpoint of the thetraedron
   this->Mid_point.x = 0.25f * (A.x + B.x + C.x + D.x);
   this->Mid_point.y = 0.25f * (A.y + B.y + C.y + D.y);
   this->Mid_point.z = 0.25f * (A.z + B.z + C.z + D.z);
 
-  Coordinate &pA = this->vertices.emplace_back(A);
-  Coordinate &pB = this->vertices.emplace_back(B);
-  Coordinate &pC = this->vertices.emplace_back(C);
-  Coordinate &pD = this->vertices.emplace_back(D);
-
   // build the tethraedron
   // ABC->0; ABD->1; ACD->2; BCD->3
-  std::list<const Facet *> initialFacets;
-  this->AppendFacet(pA, pB, pC);
-  initialFacets.push_back(&this->Facets.back());
-  this->AppendFacet(pA, pB, pD);
-  initialFacets.push_back(&this->Facets.back());
-  this->AppendFacet(pA, pC, pD);
-  initialFacets.push_back(&this->Facets.back());
-  this->AppendFacet(pB, pC, pD);
-  initialFacets.push_back(&this->Facets.back());
+  facets.reserve(4);
+  facets.push_back(make_facet(0, 1, 2));
+  facets.push_back(make_facet(0, 1, 3));
+  facets.push_back(make_facet(0, 2, 3));
+  facets.push_back(make_facet(1, 2, 3));
 
-  auto itFace_ABC = this->Facets.begin();
-  auto itFace_ABD = itFace_ABC;
-  ++itFace_ABD;
-  auto itFace_ACD = itFace_ABD;
-  ++itFace_ACD;
-  auto itFace_BCD = itFace_ACD;
-  ++itFace_BCD;
-
+  // setup initial connectivity
   // ABC
-  itFace_ABC->Neighbour[0] = &(*itFace_ABD);
-  itFace_ABC->Neighbour[1] = &(*itFace_BCD);
-  itFace_ABC->Neighbour[2] = &(*itFace_ACD);
-
+  facets[0].neighbourAB = 1;
+  facets[0].neighbourBC = 3;
+  facets[0].neighbourCA = 2;
   // ABD
-  itFace_ABD->Neighbour[0] = &(*itFace_ABC);
-  itFace_ABD->Neighbour[1] = &(*itFace_BCD);
-  itFace_ABD->Neighbour[2] = &(*itFace_ACD);
-
+  facets[1].neighbourAB = 0;
+  facets[1].neighbourBC = 3;
+  facets[1].neighbourCA = 2;
   // ACD
-  itFace_ACD->Neighbour[0] = &(*itFace_ABC);
-  itFace_ACD->Neighbour[1] = &(*itFace_BCD);
-  itFace_ACD->Neighbour[2] = &(*itFace_ABD);
-
+  facets[2].neighbourAB = 0;
+  facets[2].neighbourBC = 3;
+  facets[2].neighbourCA = 1;
   // BCD
-  itFace_BCD->Neighbour[0] = &(*itFace_ABC);
-  itFace_BCD->Neighbour[1] = &(*itFace_ACD);
-  itFace_BCD->Neighbour[2] = &(*itFace_ABD);
+  facets[3].neighbourAB = 0;
+  facets[3].neighbourBC = 2;
+  facets[3].neighbourCA = 1;
 
-  if (nullptr != this->observer)
-    this->observer->AddedChangedFacets(initialFacets, {});
-};
-
-void Hull::AppendFacet(const Coordinate &vertexA, const Coordinate &vertexB,
-                       const Coordinate &vertexC) {
-  this->Facets.emplace_back();
-  this->Facets.back().bVisible = false;
-  this->Facets.back().A = &vertexA;
-  this->Facets.back().B = &vertexB;
-  this->Facets.back().C = &vertexC;
-  this->RecomputeNormal(this->Facets.back());
-}
-
-void Hull::RecomputeNormal(Facet &facet) {
-  Coordinate delta1, delta2;
-  diff(delta1, *facet.A, *facet.C);
-  diff(delta2, *facet.B, *facet.C);
-
-  cross(facet.N, delta1, delta2);
-
-  diff(delta1, this->Mid_point, *facet.A);
-  float dot_normal = dot(facet.N, delta1);
-  if (dot_normal >= 0.f)
-    invert(facet.N);
-  // normalize
-  dot_normal = norm(facet.N);
-  if (dot_normal < 1e-7)
-    prod(facet.N, COEFF_NORMAL_DIRECTION);
-  else {
-    dot_normal = 1.f / dot_normal;
-    prod(facet.N, dot_normal);
+  if (nullptr != this->observer) {
+    std::vector<const Facet *> initial_facets;
+    initial_facets.reserve(4);
+    for (const auto &facet : facets) {
+      initial_facets.push_back(&facet);
+    }
+    observer->hullChanges(Observer::Notification{initial_facets, {}, {}});
   }
 }
 
@@ -123,6 +126,43 @@ void Replace(Facet &involved_facet, Facet &old_neigh, Facet &new_neigh) {
       involved_facet.Neighbour[2] = &new_neigh;
   }
 };
+
+namespace {
+float facet_point_distance(const std::vector<Coordinate> &vertices,
+                           const Facet &facet, const Coordinate &point) {
+  const auto &vertexACoord = vertices[facet.vertexA];
+  float distance = facet.normal.x * (point.x - vertexACoord.x);
+  distance += facet.normal.y * (point.y - vertexACoord.y);
+  distance += facet.normal.z * (point.z - vertexACoord.z);
+  return distance;
+}
+} // namespace
+
+std::vector<bool>
+Hull::computeVisibilityFlags(const Coordinate &vertex_of_new_cone,
+                             const std::size_t starting_facet) const {
+  std::set<std::size_t> visible_group = {starting_facet};
+  std::list<std::size_t> open_set = {facets[starting_facet].neighbourAB,
+                                     facets[starting_facet].neighbourBC,
+                                     facets[starting_facet].neighbourCA};
+  while (!open_set.empty()) {
+    std::size_t to_visit = open_set.front();
+    open_set.pop_front();
+    if ((visible_group.find(to_visit) == visible_group.end()) &&
+        (facet_point_distance(vertices, facets[to_visit], vertex_of_new_cone) >
+         HULL_GEOMETRIC_TOLLERANCE)) {
+      visible_group.emplace(to_visit);
+      open_set.push_back(facets[to_visit].neighbourAB);
+      open_set.push_back(facets[to_visit].neighbourBC);
+      open_set.push_back(facets[to_visit].neighbourCA);
+    }
+  }
+  std::vector<bool> flags(facets.size(), false);
+  for (const auto index : visible_group) {
+    flags[index] = true;
+  }
+  return flags;
+}
 
 void Hull::_UpdateHull(const Coordinate &vertex_of_new_cone,
                        Facet &starting_facet_for_expansion) {
