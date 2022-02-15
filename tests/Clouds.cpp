@@ -26,7 +26,8 @@ bool are_same(const std::vector<hull::Coordinate> &a,
 }
 } // namespace hull
 
-float to_rad(const float angle) { return angle * M_PI / 180.0; }
+constexpr float GREEK_PI = 3.14159f;
+float to_rad(const float angle) { return angle * GREEK_PI / 180.f; }
 
 std::vector<float> linspace(const float min, const float max,
                             const std::size_t intervals) {
@@ -82,6 +83,7 @@ TEST_CASE("Sphere clouds") {
 
   StepsLogger logger(hull, std::string("SphereCloud-") +
                                std::to_string(angular_samples));
+  hull.setObserver(logger);
 
   auto it_vertices = vertices.begin();
   std::advance(it_vertices, 4);

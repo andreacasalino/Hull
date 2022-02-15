@@ -63,20 +63,22 @@ Facet Hull::makeFacet(const std::size_t vertexA, const std::size_t vertexB,
 
 void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
                            const Coordinate &C, const Coordinate &D) {
-  // check the thetraedron has a non zero volume
-  Coordinate delta_1;
-  diff(delta_1, D, A);
-  Coordinate delta_2;
-  diff(delta_2, D, B);
-  Coordinate delta_3;
-  diff(delta_3, D, C);
+    {
+        // check the thetraedron has a non zero volume
+        Coordinate delta_1;
+        diff(delta_1, D, A);
+        Coordinate delta_2;
+        diff(delta_2, D, B);
+        Coordinate delta_3;
+        diff(delta_3, D, C);
 
-  Coordinate cross_1_2;
-  cross(cross_1_2, delta_1, delta_2);
-  if (abs(dot(cross_1_2, delta_3)) < HULL_GEOMETRIC_TOLLERANCE) {
-    throw Error("intial thetraedron volume too small: make sure the convex "
+        Coordinate cross_1_2;
+        cross(cross_1_2, delta_1, delta_2);
+        if (abs(dot(cross_1_2, delta_3)) < HULL_GEOMETRIC_TOLLERANCE) {
+            throw Error("intial thetraedron volume too small: make sure the convex "
                 "shape is actually a 3d shape");
-  }
+        }
+    }
 
   // computation of the midpoint of the thetraedron
   this->Mid_point.x = 0.25f * (A.x + B.x + C.x + D.x);
@@ -211,11 +213,11 @@ Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
 namespace {
 std::size_t find_edge_sharing_vertex(const std::vector<Hull::Edge> &edges,
                                      const std::size_t vertex,
-                                     const Hull::Edge &involved_edge) {
+                                     const std::size_t index_to_skip) {
   std::size_t result = 0;
   for (const auto &edge : edges) {
-    if ((edge.vertex_first == vertex) ||
-        (edge.vertex_second == vertex) && (&edge != &involved_edge)) {
+    if (((edge.vertex_first == vertex) || (edge.vertex_second == vertex)) 
+        && (result != index_to_skip)) {
       return result;
     }
     ++result;
@@ -267,21 +269,21 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
   // build cone of new facets
   const std::size_t new_vertex_index = vertices.size();
   vertices.push_back(vertex_of_new_cone);
-  std::size_t cone_facet_index = 0;
+  std::size_t edge_index = 0;
   for (const auto &edge : visibility_cone.edges) {
-    auto &facet_to_build = facets[cone_facets[cone_facet_index]];
+    auto &facet_to_build = facets[cone_facets[edge_index]];
     facet_to_build.vertexA = edge.vertex_first;
     facet_to_build.vertexB = edge.vertex_second;
     facet_to_build.vertexC = new_vertex_index;
 
     facet_to_build.neighbourAB = edge.neighbour_face;
     facet_to_build.neighbourCA = cone_facets[find_edge_sharing_vertex(
-        visibility_cone.edges, facet_to_build.vertexA, edge)];
+        visibility_cone.edges, facet_to_build.vertexA, edge_index)];
     facet_to_build.neighbourBC = cone_facets[find_edge_sharing_vertex(
-        visibility_cone.edges, facet_to_build.vertexB, edge)];
+        visibility_cone.edges, facet_to_build.vertexB, edge_index)];
 
     recomputeNormal(facet_to_build);
-    ++cone_facet_index;
+    ++edge_index;
   }
 
   if (nullptr != this->observer) {
