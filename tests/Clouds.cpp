@@ -1,12 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
-#include "HullToObj.h"
+#include "Utils.h"
 #include <Hull/Coordinate.h>
 
 #include <algorithm>
 #include <math.h>
-#include <sstream>
 
 namespace hull {
 bool are_same(const std::vector<hull::Coordinate> &a,
@@ -25,61 +24,7 @@ bool are_same(const std::vector<hull::Coordinate> &a,
   }
   return true;
 }
-
-bool operator==(const hull::Coordinate &a, const hull::Coordinate &b) {
-  return (a.x == b.x) && (a.y == b.y) && (a.z == b.z);
-}
 } // namespace hull
-
-hull::Hull make_hull(const std::vector<hull::Coordinate> &vertices) {
-  if (vertices.size() < 4) {
-    throw std::runtime_error{
-        "vertices collection should contain at least 4 elements"};
-  }
-  hull::Hull hull(vertices[0], vertices[1], vertices[vertices.size() - 2],
-                  vertices.back());
-  auto it_vertices = vertices.begin();
-  std::advance(it_vertices, 4);
-  std::for_each(
-      it_vertices, vertices.end(),
-      [&hull](const hull::Coordinate &vertex) { hull.update(vertex); });
-  return hull;
-}
-
-bool check_normals(const hull::Hull &subject) {
-  const auto &vertices = subject.getVertices();
-  hull::Coordinate mid_point;
-  mid_point.x =
-      0.25f * (vertices[0].x + vertices[1].x + vertices[2].x + vertices[3].x);
-  mid_point.y =
-      0.25f * (vertices[0].y + vertices[1].y + vertices[2].y + vertices[3].y);
-  mid_point.z =
-      0.25f * (vertices[0].z + vertices[1].z + vertices[2].z + vertices[3].z);
-  for (const auto &facet : subject.getFacets()) {
-    hull::Coordinate delta;
-    hull::diff(delta, vertices[facet.vertexA], mid_point);
-    if (hull::dot(delta, facet.normal) <= 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// TEST_CASE("Simple thetraedron") {
-//   std::vector<hull::Coordinate> vertices = {
-//       {0, 0, 0}, {5, 5, 0}, {5, -5, 0}, {5, 0, 5}};
-
-//   auto hull = make_hull(vertices);
-
-//   hull::toObj(hull, "Thetraedron.obj");
-
-//   CHECK(are_same(hull.getVertices(), vertices));
-//   CHECK(check_normals(hull));
-// }
-
-// TEST_CASE("Invalid thetraedrons") {
-
-// }
 
 float to_rad(const float angle) { return angle * M_PI / 180.0; }
 
@@ -112,17 +57,37 @@ make_sphere_cloud(const std::size_t angular_samples) {
   return result;
 }
 
+class StepsLogger : public hull::Observer {
+public:
+  StepsLogger(const hull::Hull &subject, const std::string &log_name)
+      : subject(&subject), log_name(log_name){};
+
+  void hullChanges(const Notification &notification) override {
+    hull::toObj(*subject, generate_obj_log_name(log_name));
+  };
+
+private:
+  const std::string log_name;
+  const hull::Hull *subject;
+};
+
 TEST_CASE("Sphere clouds") {
   std::size_t angular_samples = GENERATE(3);
   // std::size_t angular_samples = GENERATE(3, 5, 10, 20, 50, 100, 500);
 
   std::vector<hull::Coordinate> vertices = make_sphere_cloud(angular_samples);
 
-  auto hull = make_hull(vertices);
+  hull::Hull hull(vertices[0], vertices[1], vertices[vertices.size() - 2],
+                  vertices.back());
 
-  std::stringstream log_name;
-  log_name << "SphereCloud-" << std::to_string(angular_samples) << ".obj";
-  hull::toObj(hull, log_name.str());
+  StepsLogger logger(hull, std::string("SphereCloud-") +
+                               std::to_string(angular_samples));
+
+  auto it_vertices = vertices.begin();
+  std::advance(it_vertices, 4);
+  std::for_each(
+      it_vertices, vertices.end(),
+      [&hull](const hull::Coordinate &vertex) { hull.update(vertex); });
 
   CHECK(are_same(hull.getVertices(), vertices));
   CHECK(check_normals(hull));
