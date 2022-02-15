@@ -65,17 +65,17 @@ bool check_normals(const hull::Hull &subject) {
   return true;
 }
 
-TEST_CASE("Simple thetraedron") {
-  std::vector<hull::Coordinate> vertices = {
-      {0, 0, 0}, {5, 5, 0}, {5, -5, 0}, {5, 0, 5}};
+// TEST_CASE("Simple thetraedron") {
+//   std::vector<hull::Coordinate> vertices = {
+//       {0, 0, 0}, {5, 5, 0}, {5, -5, 0}, {5, 0, 5}};
 
-  auto hull = make_hull(vertices);
+//   auto hull = make_hull(vertices);
 
-  hull::toObj(hull, "Thetraedron.obj");
+//   hull::toObj(hull, "Thetraedron.obj");
 
-  CHECK(are_same(hull.getVertices(), vertices));
-  CHECK(check_normals(hull));
-}
+//   CHECK(are_same(hull.getVertices(), vertices));
+//   CHECK(check_normals(hull));
+// }
 
 // TEST_CASE("Invalid thetraedrons") {
 
@@ -112,19 +112,18 @@ make_sphere_cloud(const std::size_t angular_samples) {
   return result;
 }
 
-// TEST_CASE("Sphere clouds") {
-//   std::size_t angular_samples = GENERATE(3);
-//   // std::size_t angular_samples = GENERATE(3, 5, 10, 20, 50, 100, 500);
+TEST_CASE("Sphere clouds") {
+  std::size_t angular_samples = GENERATE(3);
+  // std::size_t angular_samples = GENERATE(3, 5, 10, 20, 50, 100, 500);
 
-//   std::vector<hull::Coordinate> vertices =
-//   make_sphere_cloud(angular_samples);
+  std::vector<hull::Coordinate> vertices = make_sphere_cloud(angular_samples);
 
-//   auto hull = make_hull(vertices);
+  auto hull = make_hull(vertices);
 
-//   std::stringstream log_name;
-//   log_name << "SphereCloud-" << std::to_string(angular_samples) << ".obj";
-//   hull::toObj(hull, log_name.str());
+  std::stringstream log_name;
+  log_name << "SphereCloud-" << std::to_string(angular_samples) << ".obj";
+  hull::toObj(hull, log_name.str());
 
-//   CHECK(are_same(hull.getVertices(), vertices));
-//   CHECK(check_normals(hull));
-// }
+  CHECK(are_same(hull.getVertices(), vertices));
+  CHECK(check_normals(hull));
+}
