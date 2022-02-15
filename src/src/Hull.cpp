@@ -8,10 +8,10 @@
 #include <Hull/Definitions.h>
 #include <Hull/Error.h>
 #include <Hull/Hull.h>
+#include <algorithm>
 #include <limits>
 #include <list>
 #include <set>
-#include <algorithm>
 
 namespace hull {
 Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
@@ -19,9 +19,7 @@ Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
   this->initThetraedron(A, B, C, D);
 };
 
-void Hull::setObserver(Observer& obs) {
-    this->observer = &obs;
-}
+void Hull::setObserver(Observer &obs) { this->observer = &obs; }
 
 void Hull::recomputeNormal(Facet &subject) const {
   Coordinate delta1, delta2;
@@ -87,6 +85,11 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
 
   // build the tethraedron
   // ABC->0; ABD->1; ACD->2; BCD->3
+  vertices.reserve(4);
+  vertices.push_back(A);
+  vertices.push_back(B);
+  vertices.push_back(C);
+  vertices.push_back(D);
   facets.reserve(4);
   facets.push_back(makeFacet(0, 1, 2));
   facets.push_back(makeFacet(0, 1, 3));
@@ -111,12 +114,12 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   facets[3].neighbourBC = 2;
   facets[3].neighbourCA = 1;
 
-  for (auto& facet : facets) {
-      recomputeNormal(facet);
+  for (auto &facet : facets) {
+    recomputeNormal(facet);
   }
 
   if (nullptr != this->observer) {
-    observer->hullChanges(Observer::Notification{ {0,1,2,3}, {}, {} });
+    observer->hullChanges(Observer::Notification{{0, 1, 2, 3}, {}, {}});
   }
 }
 
@@ -131,137 +134,160 @@ float facet_point_distance(const std::vector<Coordinate> &vertices,
 }
 } // namespace
 
-void Hull::update(const Coordinate& vertex_of_new_cone) {
-    // find first visible facet
-    std::size_t pos = 0;
-    for (const auto& facet : facets) {
-        if (facet_point_distance(vertices, facet, vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            this->update_(vertex_of_new_cone, pos);
-            return;
-        }
-        ++pos;
+void Hull::update(const Coordinate &vertex_of_new_cone) {
+  // find first visible facet
+  std::size_t pos = 0;
+  for (const auto &facet : facets) {
+    if (facet_point_distance(vertices, facet, vertex_of_new_cone) >
+        HULL_GEOMETRIC_TOLLERANCE) {
+      this->update_(vertex_of_new_cone, pos);
+      return;
     }
-    throw Error{ "Vertex passed to update hull is not outside it" };
+    ++pos;
+  }
+  throw Error{"Vertex passed to update hull is not outside it"};
 }
 
-void Hull::update(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet_for_expansion) {
-    if (facets.size() <= starting_facet_for_expansion) {
-        throw Error{ "Out of bounds facet index" };
-    }
-    if (facet_point_distance(vertices, facets[starting_facet_for_expansion], vertex_of_new_cone) <= HULL_GEOMETRIC_TOLLERANCE) {
-        throw Error{ "The specified starting facet is not valid" };
-    }
-    this->update_(vertex_of_new_cone, starting_facet_for_expansion);
+void Hull::update(const Coordinate &vertex_of_new_cone,
+                  const std::size_t starting_facet_for_expansion) {
+  if (facets.size() <= starting_facet_for_expansion) {
+    throw Error{"Out of bounds facet index"};
+  }
+  if (facet_point_distance(vertices, facets[starting_facet_for_expansion],
+                           vertex_of_new_cone) <= HULL_GEOMETRIC_TOLLERANCE) {
+    throw Error{"The specified starting facet is not valid"};
+  }
+  this->update_(vertex_of_new_cone, starting_facet_for_expansion);
 }
 
-Hull::VisibleCone Hull::computeVisibleCone(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet) const {
-    std::set<std::size_t> visible_group = {};
-    std::list<std::size_t> open_set = { starting_facet }; // this set contain facet we know are visible, but whose neighbouring was not already visited
-    std::vector<Edge> edges;
-    while (!open_set.empty()) {
-        std::size_t to_visit = open_set.front();
-        open_set.pop_front();
-        if (visible_group.find(to_visit) != visible_group.end()) {
-            continue;
-        }
-        visible_group.emplace(to_visit);
-
-        const auto& neighbourAB_index = facets[to_visit].neighbourAB;
-        if (facet_point_distance(vertices, facets[neighbourAB_index], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            open_set.push_back(neighbourAB_index);
-        }
-        else {
-            edges.push_back(Edge{facets[to_visit].vertexA, facets[to_visit].vertexB, neighbourAB_index });
-        }
-
-        const auto& neighbourBC_index = facets[to_visit].neighbourBC;
-        if (facet_point_distance(vertices, facets[neighbourBC_index], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            open_set.push_back(neighbourBC_index);
-        }
-        else {
-            edges.push_back(Edge{ facets[to_visit].vertexB, facets[to_visit].vertexC, neighbourBC_index });
-        }
-
-        const auto& neighbourCA_index = facets[to_visit].neighbourCA;
-        if (facet_point_distance(vertices, facets[neighbourCA_index], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            open_set.push_back(neighbourCA_index);
-        }
-        else {
-            edges.push_back(Edge{ facets[to_visit].vertexC, facets[to_visit].vertexA, neighbourCA_index });
-        }
+Hull::VisibleCone
+Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
+                         const std::size_t starting_facet) const {
+  std::set<std::size_t> visible_group = {};
+  std::list<std::size_t> open_set = {
+      starting_facet}; // this set contain facet we know are visible, but whose
+                       // neighbouring was not already visited
+  std::vector<Edge> edges;
+  while (!open_set.empty()) {
+    std::size_t to_visit = open_set.front();
+    open_set.pop_front();
+    if (visible_group.find(to_visit) != visible_group.end()) {
+      continue;
     }
-    return VisibleCone{std::move(edges), std::vector<std::size_t>{visible_group.begin(), visible_group.end()}};
+    visible_group.emplace(to_visit);
+
+    const auto &neighbourAB_index = facets[to_visit].neighbourAB;
+    if (facet_point_distance(vertices, facets[neighbourAB_index],
+                             vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+      open_set.push_back(neighbourAB_index);
+    } else {
+      edges.push_back(Edge{facets[to_visit].vertexA, facets[to_visit].vertexB,
+                           neighbourAB_index});
+    }
+
+    const auto &neighbourBC_index = facets[to_visit].neighbourBC;
+    if (facet_point_distance(vertices, facets[neighbourBC_index],
+                             vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+      open_set.push_back(neighbourBC_index);
+    } else {
+      edges.push_back(Edge{facets[to_visit].vertexB, facets[to_visit].vertexC,
+                           neighbourBC_index});
+    }
+
+    const auto &neighbourCA_index = facets[to_visit].neighbourCA;
+    if (facet_point_distance(vertices, facets[neighbourCA_index],
+                             vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+      open_set.push_back(neighbourCA_index);
+    } else {
+      edges.push_back(Edge{facets[to_visit].vertexC, facets[to_visit].vertexA,
+                           neighbourCA_index});
+    }
+  }
+  return VisibleCone{
+      std::move(edges),
+      std::vector<std::size_t>{visible_group.begin(), visible_group.end()}};
 }
 
 namespace {
-    std::size_t find_edge_sharing_vertex(const std::vector<Hull::Edge>& edges, const std::size_t vertex, const Hull::Edge& involved_edge) {
-        std::size_t result = 0;
-        for (const auto& edge: edges) {
-            if ((edge.vertex_first == vertex) || (edge.vertex_second == vertex)
-                && (&edge != &involved_edge)) {
-                return result;
-            }
-            ++result;
-        }
-        throw Error{"Vertex not found"};
+std::size_t find_edge_sharing_vertex(const std::vector<Hull::Edge> &edges,
+                                     const std::size_t vertex,
+                                     const Hull::Edge &involved_edge) {
+  std::size_t result = 0;
+  for (const auto &edge : edges) {
+    if ((edge.vertex_first == vertex) ||
+        (edge.vertex_second == vertex) && (&edge != &involved_edge)) {
+      return result;
     }
+    ++result;
+  }
+  throw Error{"Vertex not found"};
 }
+} // namespace
 
-void Hull::update_(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet_for_expansion) {
-    auto visibility_cone = computeVisibleCone(vertex_of_new_cone, starting_facet_for_expansion);
-    std::vector<std::size_t> changed_facets;
-    std::vector<std::size_t> added_facets;
-    std::vector<Facet> removed_facets;
+void Hull::update_(const Coordinate &vertex_of_new_cone,
+                   const std::size_t starting_facet_for_expansion) {
+  auto visibility_cone =
+      computeVisibleCone(vertex_of_new_cone, starting_facet_for_expansion);
+  std::vector<std::size_t> changed_facets;
+  std::vector<std::size_t> added_facets;
+  std::vector<Facet> removed_facets;
 
-    int facets_to_add = static_cast<int>(visibility_cone.edges.size()) - static_cast<int>(visibility_cone.visible_faces.size());
-    changed_facets = visibility_cone.visible_faces;
-    if (facets_to_add >= 0) {
-        added_facets.reserve(facets_to_add);
-        for (int k = 0; k < facets_to_add; ++k) {
-            added_facets.push_back(facets.size());
-            facets.emplace_back();
-        }
+  int facets_to_add = static_cast<int>(visibility_cone.edges.size()) -
+                      static_cast<int>(visibility_cone.visible_faces.size());
+  changed_facets = visibility_cone.visible_faces;
+  if (facets_to_add >= 0) {
+    added_facets.reserve(facets_to_add);
+    for (int k = 0; k < facets_to_add; ++k) {
+      added_facets.push_back(facets.size());
+      facets.emplace_back();
     }
-    else {
-        std::size_t remaining_facets = changed_facets.size() + facets_to_add;
-        auto it_changed = changed_facets.begin();
-        std::advance(it_changed, remaining_facets);
-        removed_facets.reserve(-facets_to_add);
-        std::for_each(it_changed, changed_facets.end(), [&facets = this->facets, &removed_facets](const std::size_t facet_pos) {
-            auto it_facets = facets.begin();
-            std::advance(it_facets, facet_pos);
-            removed_facets.push_back(*it_facets);
-            facets.erase(it_facets);
+  } else {
+    std::size_t remaining_facets = changed_facets.size() + facets_to_add;
+    auto it_changed = changed_facets.begin();
+    std::advance(it_changed, remaining_facets);
+    removed_facets.reserve(-facets_to_add);
+    std::for_each(
+        it_changed, changed_facets.end(),
+        [&facets = this->facets, &removed_facets](const std::size_t facet_pos) {
+          auto it_facets = facets.begin();
+          std::advance(it_facets, facet_pos);
+          removed_facets.push_back(*it_facets);
+          facets.erase(it_facets);
         });
-        changed_facets = std::vector<std::size_t>{ changed_facets.begin(), it_changed};
-    }
+    changed_facets =
+        std::vector<std::size_t>{changed_facets.begin(), it_changed};
+  }
 
-    std::vector<std::size_t> cone_facets = changed_facets;
-    cone_facets.reserve(changed_facets.size() + added_facets.size());
-    for (const auto index : added_facets) {
-        cone_facets.push_back(index);
-    }
+  std::vector<std::size_t> cone_facets = changed_facets;
+  cone_facets.reserve(changed_facets.size() + added_facets.size());
+  for (const auto index : added_facets) {
+    cone_facets.push_back(index);
+  }
 
-    // build cone of new facets
-    const std::size_t new_vertex_index = vertices.size();
-    vertices.push_back(vertex_of_new_cone);
-    std::size_t cone_facet_index = 0;
-    for (const auto& edge: visibility_cone.edges) {
-        auto& facet_to_build = facets[cone_facets[cone_facet_index]];
-        facet_to_build.vertexA = edge.vertex_first;
-        facet_to_build.vertexB = edge.vertex_second;
-        facet_to_build.vertexC = new_vertex_index;
+  // build cone of new facets
+  const std::size_t new_vertex_index = vertices.size();
+  vertices.push_back(vertex_of_new_cone);
+  std::size_t cone_facet_index = 0;
+  for (const auto &edge : visibility_cone.edges) {
+    auto &facet_to_build = facets[cone_facets[cone_facet_index]];
+    facet_to_build.vertexA = edge.vertex_first;
+    facet_to_build.vertexB = edge.vertex_second;
+    facet_to_build.vertexC = new_vertex_index;
 
-        facet_to_build.neighbourAB = edge.neighbour_face;
-        facet_to_build.neighbourCA = cone_facets[find_edge_sharing_vertex(visibility_cone.edges, facet_to_build.vertexA, edge)];
-        facet_to_build.neighbourBC = cone_facets[find_edge_sharing_vertex(visibility_cone.edges, facet_to_build.vertexB, edge)];
+    facet_to_build.neighbourAB = edge.neighbour_face;
+    facet_to_build.neighbourCA = cone_facets[find_edge_sharing_vertex(
+        visibility_cone.edges, facet_to_build.vertexA, edge)];
+    facet_to_build.neighbourBC = cone_facets[find_edge_sharing_vertex(
+        visibility_cone.edges, facet_to_build.vertexB, edge)];
 
-        recomputeNormal(facet_to_build);
-        ++cone_facet_index;
-    }
+    recomputeNormal(facet_to_build);
+    ++cone_facet_index;
+  }
 
-    if (nullptr != this->observer) {
-        observer->hullChanges(Observer::Notification{ std::move(added_facets), std::move(changed_facets), std::move(removed_facets) });
-    }
+  if (nullptr != this->observer) {
+    observer->hullChanges(Observer::Notification{std::move(added_facets),
+                                                 std::move(changed_facets),
+                                                 std::move(removed_facets)});
+  }
 }
 } // namespace hull

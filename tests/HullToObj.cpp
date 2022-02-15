@@ -9,6 +9,7 @@ void toObj(const Hull &subject, const std::string &fileName) {
     stream << ' ' << vertex.x;
     stream << ' ' << vertex.y;
     stream << ' ' << vertex.z;
+    stream << std::endl;
   }
   stream << std::endl;
   for (const auto &facet : subject.getFacets()) {
@@ -16,6 +17,7 @@ void toObj(const Hull &subject, const std::string &fileName) {
     stream << ' ' << std::to_string(facet.vertexA + 1);
     stream << ' ' << std::to_string(facet.vertexB + 1);
     stream << ' ' << std::to_string(facet.vertexC + 1);
+    stream << std::endl;
   }
 }
 } // namespace hull
