@@ -42,7 +42,7 @@ public:
   Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
        const Coordinate &D);
 
-  void setObserver(const Observer &obs);
+  void setObserver(Observer &obs);
 
   void update(const Coordinate& vertex_of_new_cone);
 

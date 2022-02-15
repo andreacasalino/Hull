@@ -19,6 +19,10 @@ Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
   this->initThetraedron(A, B, C, D);
 };
 
+void Hull::setObserver(Observer& obs) {
+    this->observer = &obs;
+}
+
 void Hull::recomputeNormal(Facet &subject) const {
   Coordinate delta1, delta2;
   diff(delta1, vertices[subject.vertexA], vertices[subject.vertexC]);
@@ -107,6 +111,10 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   facets[3].neighbourBC = 2;
   facets[3].neighbourCA = 1;
 
+  for (auto& facet : facets) {
+      recomputeNormal(facet);
+  }
+
   if (nullptr != this->observer) {
     observer->hullChanges(Observer::Notification{ {0,1,2,3}, {}, {} });
   }
@@ -148,7 +156,7 @@ void Hull::update(const Coordinate& vertex_of_new_cone, const std::size_t starti
 
 Hull::VisibleCone Hull::computeVisibleCone(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet) const {
     std::set<std::size_t> visible_group = {};
-    std::list<std::size_t> open_set = { starting_facet }; // this set contain facet we know are visible, but whose neighbouring was not already computed
+    std::list<std::size_t> open_set = { starting_facet }; // this set contain facet we know are visible, but whose neighbouring was not already visited
     std::vector<Edge> edges;
     while (!open_set.empty()) {
         std::size_t to_visit = open_set.front();
@@ -158,28 +166,28 @@ Hull::VisibleCone Hull::computeVisibleCone(const Coordinate& vertex_of_new_cone,
         }
         visible_group.emplace(to_visit);
 
-        const auto& to_visit_neighbourAB = facets[to_visit].neighbourAB;
-        if (facet_point_distance(vertices, facets[to_visit_neighbourAB], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            open_set.push_back(to_visit_neighbourAB);
+        const auto& neighbourAB_index = facets[to_visit].neighbourAB;
+        if (facet_point_distance(vertices, facets[neighbourAB_index], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+            open_set.push_back(neighbourAB_index);
         }
         else {
-            edges.push_back(Edge{facets[to_visit].vertexA, facets[to_visit].vertexB, to_visit_neighbourAB });
+            edges.push_back(Edge{facets[to_visit].vertexA, facets[to_visit].vertexB, neighbourAB_index });
         }
 
-        const auto& to_visit_neighbourBC = facets[to_visit].neighbourBC;
-        if (facet_point_distance(vertices, facets[to_visit_neighbourBC], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            open_set.push_back(to_visit_neighbourBC);
+        const auto& neighbourBC_index = facets[to_visit].neighbourBC;
+        if (facet_point_distance(vertices, facets[neighbourBC_index], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+            open_set.push_back(neighbourBC_index);
         }
         else {
-            edges.push_back(Edge{ facets[to_visit].vertexB, facets[to_visit].vertexC, to_visit_neighbourBC });
+            edges.push_back(Edge{ facets[to_visit].vertexB, facets[to_visit].vertexC, neighbourBC_index });
         }
 
-        const auto& to_visit_neighbourCA = facets[to_visit].neighbourCA;
-        if (facet_point_distance(vertices, facets[to_visit_neighbourCA], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
-            open_set.push_back(to_visit_neighbourCA);
+        const auto& neighbourCA_index = facets[to_visit].neighbourCA;
+        if (facet_point_distance(vertices, facets[neighbourCA_index], vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
+            open_set.push_back(neighbourCA_index);
         }
         else {
-            edges.push_back(Edge{ facets[to_visit].vertexC, facets[to_visit].vertexA, to_visit_neighbourCA });
+            edges.push_back(Edge{ facets[to_visit].vertexC, facets[to_visit].vertexA, neighbourCA_index });
         }
     }
     return VisibleCone{std::move(edges), std::vector<std::size_t>{visible_group.begin(), visible_group.end()}};
@@ -209,7 +217,7 @@ void Hull::update_(const Coordinate& vertex_of_new_cone, const std::size_t start
     changed_facets = visibility_cone.visible_faces;
     if (facets_to_add >= 0) {
         added_facets.reserve(facets_to_add);
-        for (std::size_t k = 0; k < facets_to_add; ++k) {
+        for (int k = 0; k < facets_to_add; ++k) {
             added_facets.push_back(facets.size());
             facets.emplace_back();
         }
@@ -228,28 +236,28 @@ void Hull::update_(const Coordinate& vertex_of_new_cone, const std::size_t start
         changed_facets = std::vector<std::size_t>{ changed_facets.begin(), it_changed};
     }
 
-    std::vector<std::size_t> all_remaining_facets = changed_facets;
-    all_remaining_facets.reserve(changed_facets.size() + added_facets.size());
+    std::vector<std::size_t> cone_facets = changed_facets;
+    cone_facets.reserve(changed_facets.size() + added_facets.size());
     for (const auto index : added_facets) {
-        all_remaining_facets.push_back(index);
+        cone_facets.push_back(index);
     }
 
     // build cone of new facets
     const std::size_t new_vertex_index = vertices.size();
     vertices.push_back(vertex_of_new_cone);
-    std::size_t emplacing_index = 0;
+    std::size_t cone_facet_index = 0;
     for (const auto& edge: visibility_cone.edges) {
-        auto& facet_to_build = facets[all_remaining_facets[emplacing_index]];
+        auto& facet_to_build = facets[cone_facets[cone_facet_index]];
         facet_to_build.vertexA = edge.vertex_first;
         facet_to_build.vertexB = edge.vertex_second;
         facet_to_build.vertexC = new_vertex_index;
 
         facet_to_build.neighbourAB = edge.neighbour_face;
-        facet_to_build.neighbourCA = all_remaining_facets[find_edge_sharing_vertex(visibility_cone.edges, facet_to_build.vertexA, edge)];
-        facet_to_build.neighbourBC = all_remaining_facets[find_edge_sharing_vertex(visibility_cone.edges, facet_to_build.vertexB, edge)];
+        facet_to_build.neighbourCA = cone_facets[find_edge_sharing_vertex(visibility_cone.edges, facet_to_build.vertexA, edge)];
+        facet_to_build.neighbourBC = cone_facets[find_edge_sharing_vertex(visibility_cone.edges, facet_to_build.vertexB, edge)];
 
         recomputeNormal(facet_to_build);
-        ++emplacing_index;
+        ++cone_facet_index;
     }
 
     if (nullptr != this->observer) {
