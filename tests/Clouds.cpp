@@ -64,6 +64,18 @@ public:
       : subject(&subject), log_name(log_name){};
 
   void hullChanges(const Notification &notification) override {
+      // check the updated mesh is not corrupted
+      for (std::size_t facet_id = 0; facet_id < subject->getFacets().size(); ++facet_id) {
+          if (facet_id == subject->getFacets()[facet_id].neighbourAB) {
+              throw std::runtime_error{ "corrupted mesh" };
+          }
+          if (facet_id == subject->getFacets()[facet_id].neighbourBC) {
+              throw std::runtime_error{ "corrupted mesh" };
+          }
+          if (facet_id == subject->getFacets()[facet_id].neighbourCA) {
+              throw std::runtime_error{ "corrupted mesh" };
+          }
+      }
     hull::toObj(*subject, generate_obj_log_name(log_name));
   };
 

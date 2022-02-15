@@ -243,7 +243,8 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
       added_facets.push_back(facets.size());
       facets.emplace_back();
     }
-  } else {
+  } 
+  else {
     std::size_t remaining_facets = changed_facets.size() + facets_to_add;
     auto it_changed = changed_facets.begin();
     std::advance(it_changed, remaining_facets);
