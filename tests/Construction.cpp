@@ -17,7 +17,7 @@ TEST_CASE("Hull construction") {
     hull::toObj(hull.getVertices(), hull.getFacets(),
                 generate_obj_log_name("Thetraedron"));
 
-    CHECK(hull::check_normals(hull));
+    CHECK(hull::check_normals(hull.getVertices(), hull.getFacets()));
   }
 
   SECTION("expected to throw tests") {
