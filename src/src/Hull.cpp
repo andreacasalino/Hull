@@ -97,7 +97,9 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   facets.push_back(makeFacet(0, 1, 3));
   facets.push_back(makeFacet(0, 2, 3));
   facets.push_back(makeFacet(1, 2, 3));
-
+  for (auto &facet : facets) {
+    recomputeNormal(facet);
+  }
   // setup initial connectivity
   // ABC
   facets[0].neighbourAB = 1;
@@ -116,10 +118,6 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   facets[3].neighbourBC = 2;
   facets[3].neighbourCA = 1;
 
-  for (auto &facet : facets) {
-    recomputeNormal(facet);
-  }
-
   if (nullptr != this->observer) {
     observer->hullChanges(
         Observer::Notification{{0, 1, 2, 3}, {}, {}, vertices, facets});
@@ -129,10 +127,10 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
 namespace {
 float facet_point_distance(const std::vector<Coordinate> &vertices,
                            const Facet &facet, const Coordinate &point) {
-  const auto &vertexACoord = vertices[facet.vertexA];
-  float distance = facet.normal.x * (point.x - vertexACoord.x);
-  distance += facet.normal.y * (point.y - vertexACoord.y);
-  distance += facet.normal.z * (point.z - vertexACoord.z);
+  const auto &vertexA = vertices[facet.vertexA];
+  float distance = facet.normal.x * (point.x - vertexA.x);
+  distance += facet.normal.y * (point.y - vertexA.y);
+  distance += facet.normal.z * (point.z - vertexA.z);
   return distance;
 }
 } // namespace
@@ -163,13 +161,43 @@ void Hull::update(const Coordinate &vertex_of_new_cone,
   this->update_(vertex_of_new_cone, starting_facet_for_expansion);
 }
 
-Hull::VisibleCone
-Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
-                         const std::size_t starting_facet) const {
+namespace {
+struct Edge {
+  std::size_t vertex_first;
+  std::size_t vertex_second;
+
+  std::size_t non_visible_neighbour_face_index;
+  enum ConnectivityCase { AB, BC, CA };
+  ConnectivityCase non_visible_neighbour_connectivity_case;
+};
+
+Edge::ConnectivityCase
+find_connectivity_case(Facet &subject,
+                       const std::size_t neighbour_index_to_find) {
+  if (neighbour_index_to_find == subject.neighbourAB) {
+    return Edge::ConnectivityCase::AB;
+  }
+  if (neighbour_index_to_find == subject.neighbourBC) {
+    return Edge::ConnectivityCase::BC;
+  }
+  if (neighbour_index_to_find == subject.neighbourCA) {
+    return Edge::ConnectivityCase::CA;
+  }
+  throw std::runtime_error{"neighbour index not found"};
+}
+} // namespace
+
+struct Hull::VisibleCone {
+  std::vector<Edge> edges;
+  std::vector<std::size_t> visible_faces;
+};
+
+Hull::VisibleCone Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
+                                           const std::size_t starting_facet) {
   std::set<std::size_t> visible_group = {};
   std::list<std::size_t> open_set = {
-      starting_facet}; // this set contain facet we know are visible, but whose
-                       // neighbouring was not already visited
+      starting_facet}; // this set contains facets we know that are visible, but
+                       // whose neighbouring was not already visited
   std::vector<Edge> edges;
   while (!open_set.empty()) {
     std::size_t to_visit = open_set.front();
@@ -184,8 +212,9 @@ Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
                              vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
       open_set.push_back(neighbourAB_index);
     } else {
-      edges.push_back(Edge{facets[to_visit].vertexA, facets[to_visit].vertexB,
-                           neighbourAB_index});
+      edges.push_back(Edge{
+          facets[to_visit].vertexA, facets[to_visit].vertexB, neighbourAB_index,
+          find_connectivity_case(facets[neighbourAB_index], to_visit)});
     }
 
     const auto &neighbourBC_index = facets[to_visit].neighbourBC;
@@ -193,8 +222,9 @@ Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
                              vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
       open_set.push_back(neighbourBC_index);
     } else {
-      edges.push_back(Edge{facets[to_visit].vertexB, facets[to_visit].vertexC,
-                           neighbourBC_index});
+      edges.push_back(Edge{
+          facets[to_visit].vertexB, facets[to_visit].vertexC, neighbourBC_index,
+          find_connectivity_case(facets[neighbourBC_index], to_visit)});
     }
 
     const auto &neighbourCA_index = facets[to_visit].neighbourCA;
@@ -202,8 +232,9 @@ Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
                              vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
       open_set.push_back(neighbourCA_index);
     } else {
-      edges.push_back(Edge{facets[to_visit].vertexC, facets[to_visit].vertexA,
-                           neighbourCA_index});
+      edges.push_back(Edge{
+          facets[to_visit].vertexC, facets[to_visit].vertexA, neighbourCA_index,
+          find_connectivity_case(facets[neighbourCA_index], to_visit)});
     }
   }
   return VisibleCone{
@@ -212,7 +243,7 @@ Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
 }
 
 namespace {
-std::size_t find_edge_sharing_vertex(const std::vector<Hull::Edge> &edges,
+std::size_t find_edge_sharing_vertex(const std::vector<Edge> &edges,
                                      const std::size_t vertex,
                                      const std::size_t index_to_skip) {
   std::size_t result = 0;
@@ -272,14 +303,31 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
   vertices.push_back(vertex_of_new_cone);
   std::size_t edge_index = 0;
   for (const auto &edge : visibility_cone.edges) {
-    auto &facet_to_build = facets[cone_facets[edge_index]];
+    std::size_t facet_to_build_index = cone_facets[edge_index];
+    auto &facet_to_build = facets[facet_to_build_index];
     facet_to_build.vertexA = edge.vertex_first;
     facet_to_build.vertexB = edge.vertex_second;
     facet_to_build.vertexC = new_vertex_index;
 
-    facet_to_build.neighbourAB = edge.neighbour_face;
+    facet_to_build.neighbourAB = edge.non_visible_neighbour_face_index;
+    switch (edge.non_visible_neighbour_connectivity_case) {
+    case Edge::ConnectivityCase::AB:
+      facets[edge.non_visible_neighbour_face_index].neighbourAB =
+          facet_to_build_index;
+      break;
+    case Edge::ConnectivityCase::BC:
+      facets[edge.non_visible_neighbour_face_index].neighbourBC =
+          facet_to_build_index;
+      break;
+    case Edge::ConnectivityCase::CA:
+      facets[edge.non_visible_neighbour_face_index].neighbourCA =
+          facet_to_build_index;
+      break;
+    }
+
     facet_to_build.neighbourCA = cone_facets[find_edge_sharing_vertex(
         visibility_cone.edges, facet_to_build.vertexA, edge_index)];
+
     facet_to_build.neighbourBC = cone_facets[find_edge_sharing_vertex(
         visibility_cone.edges, facet_to_build.vertexB, edge_index)];
 

@@ -58,27 +58,61 @@ make_sphere_cloud(const std::size_t angular_samples) {
   return result;
 }
 
+bool is_connected(const hull::Facet &subject, const std::size_t facet_to_find) {
+  if (subject.neighbourAB == facet_to_find) {
+    return true;
+  }
+  if (subject.neighbourBC == facet_to_find) {
+    return true;
+  }
+  if (subject.neighbourCA == facet_to_find) {
+    return true;
+  }
+  return false;
+}
+
 class StepsLogger : public hull::Observer {
 public:
   StepsLogger(const std::string &log_name) : log_name(log_name){};
 
   void hullChanges(const Notification &notification) override {
-    // check the updated mesh is not corrupted
-    for (std::size_t facet_id = 0; facet_id < notification.facets.size();
-         ++facet_id) {
-      if (facet_id == notification.facets[facet_id].neighbourAB) {
-        throw std::runtime_error{"corrupted mesh"};
-      }
-      if (facet_id == notification.facets[facet_id].neighbourBC) {
-        throw std::runtime_error{"corrupted mesh"};
-      }
-      if (facet_id == notification.facets[facet_id].neighbourCA) {
-        throw std::runtime_error{"corrupted mesh"};
-      }
-    }
+    check_updated_mesh(notification);
     hull::toObj(notification.vertices, notification.facets,
                 generate_obj_log_name(log_name));
   };
+
+  void check_updated_mesh(const Notification &notification) const {
+    // check connectivity
+    for (std::size_t facet_id = 0; facet_id < notification.facets.size();
+         ++facet_id) {
+      if (facet_id == notification.facets[facet_id].neighbourAB) {
+        throw std::runtime_error{"Neighbour of facet pointing to itself"};
+      }
+      if (!is_connected(
+              notification.facets[notification.facets[facet_id].neighbourAB],
+              facet_id)) {
+        throw std::runtime_error{"Neighbour not connected to this facet"};
+      }
+
+      if (facet_id == notification.facets[facet_id].neighbourBC) {
+        throw std::runtime_error{"Neighbour of facet pointing to itself"};
+      }
+      if (!is_connected(
+              notification.facets[notification.facets[facet_id].neighbourBC],
+              facet_id)) {
+        throw std::runtime_error{"Neighbour not connected to this facet"};
+      }
+
+      if (facet_id == notification.facets[facet_id].neighbourCA) {
+        throw std::runtime_error{"Neighbour of facet pointing to itself"};
+      }
+      if (!is_connected(
+              notification.facets[notification.facets[facet_id].neighbourCA],
+              facet_id)) {
+        throw std::runtime_error{"Neighbour not connected to this facet"};
+      }
+    }
+  }
 
 private:
   const std::string log_name;

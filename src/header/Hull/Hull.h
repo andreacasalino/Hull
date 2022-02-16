@@ -55,16 +55,6 @@ public:
   const std::vector<Coordinate> &getVertices() const { return this->vertices; };
   const std::vector<Facet> &getFacets() const { return this->facets; };
 
-  struct Edge {
-    std::size_t vertex_first;
-    std::size_t vertex_second;
-    std::size_t neighbour_face;
-  };
-  struct VisibleCone {
-    std::vector<Edge> edges;
-    std::vector<std::size_t> visible_faces;
-  };
-
 private:
   void initThetraedron(const Coordinate &A, const Coordinate &B,
                        const Coordinate &C, const Coordinate &D);
@@ -77,8 +67,9 @@ private:
   Facet makeFacet(const std::size_t vertexA, const std::size_t vertexB,
                   const std::size_t vertexC) const;
 
+  struct VisibleCone;
   VisibleCone computeVisibleCone(const Coordinate &vertex_of_new_cone,
-                                 const std::size_t starting_facet) const;
+                                 const std::size_t starting_facet);
 
   std::vector<Coordinate> vertices;
   std::vector<Facet> facets;
