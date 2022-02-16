@@ -32,6 +32,9 @@ public:
     std::vector<std::size_t> added;
     std::vector<std::size_t> changed;
     std::vector<Facet> removed;
+    // context
+    const std::vector<Coordinate> &vertices;
+    const std::vector<Facet> &facets;
   };
 
   virtual void hullChanges(const Notification &notification) = 0;
@@ -44,7 +47,7 @@ public:
 
   void setObserver(Observer &obs);
 
-  void update(const Coordinate& vertex_of_new_cone);
+  void update(const Coordinate &vertex_of_new_cone);
 
   void update(const Coordinate &vertex_of_new_cone,
               const std::size_t starting_facet_for_expansion);
@@ -53,27 +56,29 @@ public:
   const std::vector<Facet> &getFacets() const { return this->facets; };
 
   struct Edge {
-      std::size_t vertex_first;
-      std::size_t vertex_second;
-      std::size_t neighbour_face;
+    std::size_t vertex_first;
+    std::size_t vertex_second;
+    std::size_t neighbour_face;
   };
   struct VisibleCone {
-      std::vector<Edge> edges;
-      std::vector<std::size_t> visible_faces;
+    std::vector<Edge> edges;
+    std::vector<std::size_t> visible_faces;
   };
 
 private:
   void initThetraedron(const Coordinate &A, const Coordinate &B,
                        const Coordinate &C, const Coordinate &D);
 
-  void update_(const Coordinate& vertex_of_new_cone, const std::size_t starting_facet_for_expansion);
+  void update_(const Coordinate &vertex_of_new_cone,
+               const std::size_t starting_facet_for_expansion);
 
   void recomputeNormal(Facet &subject) const;
 
   Facet makeFacet(const std::size_t vertexA, const std::size_t vertexB,
                   const std::size_t vertexC) const;
 
-  VisibleCone computeVisibleCone(const Coordinate &vertex_of_new_cone, const std::size_t starting_facet) const;
+  VisibleCone computeVisibleCone(const Coordinate &vertex_of_new_cone,
+                                 const std::size_t starting_facet) const;
 
   std::vector<Coordinate> vertices;
   std::vector<Facet> facets;

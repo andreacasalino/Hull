@@ -5,7 +5,8 @@
 #include <string>
 
 namespace hull {
-void toObj(const Hull &subject, const std::string &fileName);
+void toObj(const std::vector<Coordinate> &vertices,
+           const std::vector<Facet> &facets, const std::string &fileName);
 
 bool check_normals(const hull::Hull &subject);
 

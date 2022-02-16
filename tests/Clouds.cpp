@@ -60,28 +60,28 @@ make_sphere_cloud(const std::size_t angular_samples) {
 
 class StepsLogger : public hull::Observer {
 public:
-  StepsLogger(const hull::Hull &subject, const std::string &log_name)
-      : subject(&subject), log_name(log_name){};
+  StepsLogger(const std::string &log_name) : log_name(log_name){};
 
   void hullChanges(const Notification &notification) override {
-      // check the updated mesh is not corrupted
-      for (std::size_t facet_id = 0; facet_id < subject->getFacets().size(); ++facet_id) {
-          if (facet_id == subject->getFacets()[facet_id].neighbourAB) {
-              throw std::runtime_error{ "corrupted mesh" };
-          }
-          if (facet_id == subject->getFacets()[facet_id].neighbourBC) {
-              throw std::runtime_error{ "corrupted mesh" };
-          }
-          if (facet_id == subject->getFacets()[facet_id].neighbourCA) {
-              throw std::runtime_error{ "corrupted mesh" };
-          }
+    // check the updated mesh is not corrupted
+    for (std::size_t facet_id = 0; facet_id < notification.facets.size();
+         ++facet_id) {
+      if (facet_id == notification.facets[facet_id].neighbourAB) {
+        throw std::runtime_error{"corrupted mesh"};
       }
-    hull::toObj(*subject, generate_obj_log_name(log_name));
+      if (facet_id == notification.facets[facet_id].neighbourBC) {
+        throw std::runtime_error{"corrupted mesh"};
+      }
+      if (facet_id == notification.facets[facet_id].neighbourCA) {
+        throw std::runtime_error{"corrupted mesh"};
+      }
+    }
+    hull::toObj(notification.vertices, notification.facets,
+                generate_obj_log_name(log_name));
   };
 
 private:
   const std::string log_name;
-  const hull::Hull *subject;
 };
 
 TEST_CASE("Sphere clouds") {
@@ -93,8 +93,8 @@ TEST_CASE("Sphere clouds") {
   hull::Hull hull(vertices[0], vertices[1], vertices[vertices.size() - 2],
                   vertices.back());
 
-  StepsLogger logger(hull, std::string("SphereCloud-") +
-                               std::to_string(angular_samples));
+  StepsLogger logger(std::string("SphereCloud-") +
+                     std::to_string(angular_samples));
   hull.setObserver(logger);
 
   auto it_vertices = vertices.begin();

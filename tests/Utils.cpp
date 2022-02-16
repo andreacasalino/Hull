@@ -3,9 +3,10 @@
 #include <sstream>
 
 namespace hull {
-void toObj(const Hull &subject, const std::string &fileName) {
+void toObj(const std::vector<Coordinate> &vertices,
+           const std::vector<Facet> &facets, const std::string &fileName) {
   std::ofstream stream(fileName);
-  for (const auto &vertex : subject.getVertices()) {
+  for (const auto &vertex : vertices) {
     stream << 'v';
     stream << ' ' << vertex.x;
     stream << ' ' << vertex.y;
@@ -13,7 +14,7 @@ void toObj(const Hull &subject, const std::string &fileName) {
     stream << std::endl;
   }
   stream << std::endl;
-  for (const auto &facet : subject.getFacets()) {
+  for (const auto &facet : facets) {
     stream << 'f';
     stream << ' ' << std::to_string(facet.vertexA + 1);
     stream << ' ' << std::to_string(facet.vertexB + 1);
