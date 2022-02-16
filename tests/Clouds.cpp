@@ -24,8 +24,8 @@ make_sphere_cloud(const std::size_t angular_samples) {
 }
 
 TEST_CASE("Sphere clouds") {
-  std::size_t angular_samples = GENERATE(3);
-  // std::size_t angular_samples = GENERATE(3, 5, 10, 20, 50, 100, 500);
+  std::size_t angular_samples = 10;
+  // std::size_t angular_samples = GENERATE(3, 5, 10, 20, 50);
 
   std::vector<hull::Coordinate> vertices = make_sphere_cloud(angular_samples);
 
