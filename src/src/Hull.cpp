@@ -63,22 +63,22 @@ Facet Hull::makeFacet(const std::size_t vertexA, const std::size_t vertexB,
 
 void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
                            const Coordinate &C, const Coordinate &D) {
-    {
-        // check the thetraedron has a non zero volume
-        Coordinate delta_1;
-        diff(delta_1, D, A);
-        Coordinate delta_2;
-        diff(delta_2, D, B);
-        Coordinate delta_3;
-        diff(delta_3, D, C);
+  {
+    // check the thetraedron has a non zero volume
+    Coordinate delta_1;
+    diff(delta_1, D, A);
+    Coordinate delta_2;
+    diff(delta_2, D, B);
+    Coordinate delta_3;
+    diff(delta_3, D, C);
 
-        Coordinate cross_1_2;
-        cross(cross_1_2, delta_1, delta_2);
-        if (abs(dot(cross_1_2, delta_3)) < HULL_GEOMETRIC_TOLLERANCE) {
-            throw Error("intial thetraedron volume too small: make sure the convex "
-                "shape is actually a 3d shape");
-        }
+    Coordinate cross_1_2;
+    cross(cross_1_2, delta_1, delta_2);
+    if (abs(dot(cross_1_2, delta_3)) < HULL_GEOMETRIC_TOLLERANCE) {
+      throw Error("intial thetraedron volume too small: make sure the convex "
+                  "shape is actually a 3d shape");
     }
+  }
 
   // computation of the midpoint of the thetraedron
   this->Mid_point.x = 0.25f * (A.x + B.x + C.x + D.x);
@@ -216,8 +216,8 @@ std::size_t find_edge_sharing_vertex(const std::vector<Hull::Edge> &edges,
                                      const std::size_t index_to_skip) {
   std::size_t result = 0;
   for (const auto &edge : edges) {
-    if (((edge.vertex_first == vertex) || (edge.vertex_second == vertex)) 
-        && (result != index_to_skip)) {
+    if (((edge.vertex_first == vertex) || (edge.vertex_second == vertex)) &&
+        (result != index_to_skip)) {
       return result;
     }
     ++result;
@@ -243,8 +243,7 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
       added_facets.push_back(facets.size());
       facets.emplace_back();
     }
-  } 
-  else {
+  } else {
     std::size_t remaining_facets = changed_facets.size() + facets_to_add;
     auto it_changed = changed_facets.begin();
     std::advance(it_changed, remaining_facets);
@@ -286,6 +285,13 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
     recomputeNormal(facet_to_build);
     ++edge_index;
   }
+
+  // update mid point for better computations
+  prod(Mid_point, static_cast<float>(vertices.size() - 1));
+  Mid_point.x += vertices.back().x;
+  Mid_point.y += vertices.back().y;
+  Mid_point.z += vertices.back().z;
+  prod(Mid_point, 1.f / static_cast<float>(vertices.size()));
 
   if (nullptr != this->observer) {
     observer->hullChanges(Observer::Notification{std::move(added_facets),
