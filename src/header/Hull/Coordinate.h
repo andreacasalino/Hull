@@ -10,8 +10,6 @@
 #include <math.h>
 
 namespace hull {
-constexpr float GEOMETRIC_TOLLERANCE = static_cast<float>(1e-3);
-
 struct Coordinate {
   float x;
   float y;

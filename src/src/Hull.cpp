@@ -43,21 +43,13 @@ void Hull::recomputeNormal(Facet &subject) const {
   }
 }
 
-namespace {
-constexpr std::size_t INVALID_FACET_INDEX =
-    std::numeric_limits<std::size_t>::max();
-}
-
-Facet Hull::makeFacet(const std::size_t vertexA, const std::size_t vertexB,
-                      const std::size_t vertexC) const {
-  Facet result;
-  result.vertexA = vertexA;
-  result.vertexB = vertexB;
-  result.vertexC = vertexC;
-  recomputeNormal(result);
-  result.neighbourAB = INVALID_FACET_INDEX;
-  result.neighbourBC = INVALID_FACET_INDEX;
-  result.neighbourCA = INVALID_FACET_INDEX;
+FacetPtr Hull::makeFacet(const std::size_t vertexA, const std::size_t vertexB,
+                         const std::size_t vertexC) const {
+  FacetPtr result = std::make_unique<Facet>();
+  result->vertexA = vertexA;
+  result->vertexB = vertexB;
+  result->vertexC = vertexC;
+  recomputeNormal(*result);
   return result;
 }
 
@@ -93,34 +85,34 @@ void Hull::initThetraedron(const Coordinate &A, const Coordinate &B,
   vertices.push_back(C);
   vertices.push_back(D);
   facets.reserve(4);
-  facets.push_back(makeFacet(0, 1, 2));
-  facets.push_back(makeFacet(0, 1, 3));
-  facets.push_back(makeFacet(0, 2, 3));
-  facets.push_back(makeFacet(1, 2, 3));
-  for (auto &facet : facets) {
-    recomputeNormal(facet);
-  }
+  facets.emplace_back(makeFacet(0, 1, 2));
+  facets.emplace_back(makeFacet(0, 1, 3));
+  facets.emplace_back(makeFacet(0, 2, 3));
+  facets.emplace_back(makeFacet(1, 2, 3));
   // setup initial connectivity
   // ABC
-  facets[0].neighbourAB = 1;
-  facets[0].neighbourBC = 3;
-  facets[0].neighbourCA = 2;
+  facets[0]->neighbourAB = facets[1].get();
+  facets[0]->neighbourBC = facets[3].get();
+  facets[0]->neighbourCA = facets[2].get();
   // ABD
-  facets[1].neighbourAB = 0;
-  facets[1].neighbourBC = 3;
-  facets[1].neighbourCA = 2;
+  facets[1]->neighbourAB = facets[0].get();
+  facets[1]->neighbourBC = facets[3].get();
+  facets[1]->neighbourCA = facets[2].get();
   // ACD
-  facets[2].neighbourAB = 0;
-  facets[2].neighbourBC = 3;
-  facets[2].neighbourCA = 1;
+  facets[2]->neighbourAB = facets[0].get();
+  facets[2]->neighbourBC = facets[3].get();
+  facets[2]->neighbourCA = facets[1].get();
   // BCD
-  facets[3].neighbourAB = 0;
-  facets[3].neighbourBC = 2;
-  facets[3].neighbourCA = 1;
+  facets[3]->neighbourAB = facets[0].get();
+  facets[3]->neighbourBC = facets[2].get();
+  facets[3]->neighbourCA = facets[1].get();
 
   if (nullptr != this->observer) {
-    observer->hullChanges(
-        Observer::Notification{{0, 1, 2, 3}, {}, {}, vertices, facets});
+    observer->hullChanges(Observer::Notification{
+        {},
+        {facets[0].get(), facets[1].get(), facets[2].get(), facets[3].get()},
+        {},
+        vertices});
   }
 }
 
@@ -139,7 +131,7 @@ void Hull::update(const Coordinate &vertex_of_new_cone) {
   // find first visible facet
   std::size_t pos = 0;
   for (const auto &facet : facets) {
-    if (facet_point_distance(vertices, facet, vertex_of_new_cone) >
+    if (facet_point_distance(vertices, *facet, vertex_of_new_cone) >
         HULL_GEOMETRIC_TOLLERANCE) {
       this->update_(vertex_of_new_cone, pos);
       return;
@@ -154,7 +146,7 @@ void Hull::update(const Coordinate &vertex_of_new_cone,
   if (facets.size() <= starting_facet_for_expansion) {
     throw Error{"Out of bounds facet index"};
   }
-  if (facet_point_distance(vertices, facets[starting_facet_for_expansion],
+  if (facet_point_distance(vertices, *facets[starting_facet_for_expansion],
                            vertex_of_new_cone) <= HULL_GEOMETRIC_TOLLERANCE) {
     throw Error{"The specified starting facet is not valid"};
   }
@@ -166,21 +158,20 @@ struct Edge {
   std::size_t vertex_first;
   std::size_t vertex_second;
 
-  std::size_t non_visible_neighbour_face_index;
+  Facet *non_visible_neighbour_face;
   enum ConnectivityCase { AB, BC, CA };
   ConnectivityCase non_visible_neighbour_connectivity_case;
 };
 
-Edge::ConnectivityCase
-find_connectivity_case(Facet &subject,
-                       const std::size_t neighbour_index_to_find) {
-  if (neighbour_index_to_find == subject.neighbourAB) {
+Edge::ConnectivityCase find_connectivity_case(Facet &subject,
+                                              const Facet *neighbour_to_find) {
+  if (neighbour_to_find == subject.neighbourAB) {
     return Edge::ConnectivityCase::AB;
   }
-  if (neighbour_index_to_find == subject.neighbourBC) {
+  if (neighbour_to_find == subject.neighbourBC) {
     return Edge::ConnectivityCase::BC;
   }
-  if (neighbour_index_to_find == subject.neighbourCA) {
+  if (neighbour_to_find == subject.neighbourCA) {
     return Edge::ConnectivityCase::CA;
   }
   throw std::runtime_error{"neighbour index not found"};
@@ -207,8 +198,8 @@ Hull::VisibleCone Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
     }
     visible_group.emplace(to_visit);
 
-    const auto &neighbourAB_index = facets[to_visit].neighbourAB;
-    if (facet_point_distance(vertices, facets[neighbourAB_index],
+    const auto *neighbour_facet_AB = facets[to_visit]->neighbourAB;
+    if (facet_point_distance(vertices, *neighbour_facet_AB,
                              vertex_of_new_cone) > HULL_GEOMETRIC_TOLLERANCE) {
       open_set.push_back(neighbourAB_index);
     } else {
