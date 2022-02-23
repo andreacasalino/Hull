@@ -360,7 +360,7 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
 
   if (nullptr != this->observer) {
     observer->hullChanges(Observer::Notification{
-        std::move(added_facets), std::move(changed_facets),
+        std::move(changed_facets), std::move(added_facets),
         std::move(removed_facets), vertices, facets});
   }
 }
