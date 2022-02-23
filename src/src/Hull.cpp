@@ -256,6 +256,22 @@ std::size_t find_edge_sharing_vertex(const std::vector<Edge> &edges,
   }
   throw Error{"Vertex not found"};
 }
+
+void remove_facets(std::vector<Facet> &facets,
+                   std::list<std::size_t> indices_to_remove) {
+  while (!indices_to_remove.empty()) {
+    std::size_t index = indices_to_remove.front();
+    indices_to_remove.pop_front();
+    auto facets_it = facets.begin();
+    std::advance(facets_it, index);
+    facets.erase(facets_it);
+    for (auto &other_index : indices_to_remove) {
+      if (other_index > index) {
+        --other_index;
+      }
+    }
+  }
+}
 } // namespace
 
 void Hull::update_(const Coordinate &vertex_of_new_cone,
@@ -264,7 +280,7 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
       computeVisibleCone(vertex_of_new_cone, starting_facet_for_expansion);
   std::vector<std::size_t> changed_facets;
   std::vector<std::size_t> added_facets;
-  std::vector<Facet> removed_facets;
+  std::vector<Observer::Notification::FacetAndOldIndex> removed_facets;
 
   int facets_to_add = static_cast<int>(visibility_cone.edges.size()) -
                       static_cast<int>(visibility_cone.visible_faces.size());
@@ -279,15 +295,15 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
     std::size_t remaining_facets = changed_facets.size() + facets_to_add;
     auto it_changed = changed_facets.begin();
     std::advance(it_changed, remaining_facets);
-    removed_facets.reserve(-facets_to_add);
-    std::for_each(
-        it_changed, changed_facets.end(),
-        [&facets = this->facets, &removed_facets](const std::size_t facet_pos) {
-          auto it_facets = facets.begin();
-          std::advance(it_facets, facet_pos);
-          removed_facets.push_back(*it_facets);
-          facets.erase(it_facets);
-        });
+
+    std::list<std::size_t> indices_to_remove(it_changed, changed_facets.end());
+    removed_facets.reserve(indices_to_remove.size());
+    for (const auto &index : indices_to_remove) {
+      removed_facets.push_back(
+          Observer::Notification::FacetAndOldIndex{facets[index], index});
+    }
+    remove_facets(facets, std::move(indices_to_remove));
+
     changed_facets =
         std::vector<std::size_t>{changed_facets.begin(), it_changed};
   }

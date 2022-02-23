@@ -29,9 +29,15 @@ public:
   virtual ~Observer() = default;
 
   struct Notification {
-    std::vector<std::size_t> added;
     std::vector<std::size_t> changed;
-    std::vector<Facet> removed;
+
+    std::vector<std::size_t> added;
+    struct FacetAndOldIndex {
+      Facet facet;
+      std::size_t old_index;
+    };
+    std::vector<FacetAndOldIndex> removed;
+
     // context
     const std::vector<Coordinate> &vertices;
     const std::vector<Facet> &facets;
