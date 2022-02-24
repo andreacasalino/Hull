@@ -4,8 +4,8 @@
 #include <sstream>
 
 namespace hull {
-void toObj(const std::vector<Coordinate> &vertices,
-           const std::vector<Facet> &facets, const std::string &fileName) {
+void toObj(const std::vector<Coordinate> &vertices, const Facets &facets,
+           const std::string &fileName) {
   std::ofstream stream(fileName);
   for (const auto &vertex : vertices) {
     stream << 'v';
@@ -17,15 +17,15 @@ void toObj(const std::vector<Coordinate> &vertices,
   stream << std::endl;
   for (const auto &facet : facets) {
     stream << 'f';
-    stream << ' ' << std::to_string(facet.vertexA + 1);
-    stream << ' ' << std::to_string(facet.vertexB + 1);
-    stream << ' ' << std::to_string(facet.vertexC + 1);
+    stream << ' ' << std::to_string(facet->vertexA + 1);
+    stream << ' ' << std::to_string(facet->vertexB + 1);
+    stream << ' ' << std::to_string(facet->vertexC + 1);
     stream << std::endl;
   }
 }
 
 bool check_normals(const std::vector<Coordinate> &vertices,
-                   const std::vector<Facet> &facets) {
+                   const Facets &facets) {
   hull::Coordinate mid_point;
   mid_point.x =
       0.25f * (vertices[0].x + vertices[1].x + vertices[2].x + vertices[3].x);
@@ -35,22 +35,22 @@ bool check_normals(const std::vector<Coordinate> &vertices,
       0.25f * (vertices[0].z + vertices[1].z + vertices[2].z + vertices[3].z);
   for (const auto &facet : facets) {
     hull::Coordinate delta;
-    hull::diff(delta, vertices[facet.vertexA], mid_point);
-    if (hull::dot(delta, facet.normal) <= 0) {
+    hull::diff(delta, vertices[facet->vertexA], mid_point);
+    if (hull::dot(delta, facet->normal) <= 0) {
       return false;
     }
   }
   return true;
 }
 
-void StepsLogger::hullChanges(const Notification &notification) {
+void StepsLogger::hullChanges(Notification &&notification) {
   check_updated_mesh(notification);
-  hull::toObj(notification.vertices, notification.facets,
+  hull::toObj(notification.context.vertices, notification.context.faces,
               generate_obj_log_name(log_name));
 };
 
 namespace {
-bool is_connected(const hull::Facet &subject, const std::size_t facet_to_find) {
+bool is_connected(const hull::Facet &subject, const Facet *facet_to_find) {
   if (subject.neighbourAB == facet_to_find) {
     return true;
   }
@@ -65,37 +65,32 @@ bool is_connected(const hull::Facet &subject, const std::size_t facet_to_find) {
 } // namespace
 
 void StepsLogger::check_updated_mesh(const Notification &notification) const {
+  const auto &facets = notification.context.faces;
+  const auto &vertices = notification.context.vertices;
   // check normals
-  if (!check_normals(notification.vertices, notification.facets)) {
+  if (!check_normals(vertices, facets)) {
     throw std::runtime_error{"Invalid normals after update"};
   }
   // check connectivity
-  for (std::size_t facet_id = 0; facet_id < notification.facets.size();
-       ++facet_id) {
-    if (facet_id == notification.facets[facet_id].neighbourAB) {
+  for (const auto &facet : facets) {
+    if (facet.get() == facet->neighbourAB) {
       throw std::runtime_error{"Neighbour of facet pointing to itself"};
     }
-    if (!is_connected(
-            notification.facets[notification.facets[facet_id].neighbourAB],
-            facet_id)) {
+    if (!is_connected(*facet->neighbourAB, facet.get())) {
       throw std::runtime_error{"Neighbour not connected to this facet"};
     }
 
-    if (facet_id == notification.facets[facet_id].neighbourBC) {
+    if (facet.get() == facet->neighbourBC) {
       throw std::runtime_error{"Neighbour of facet pointing to itself"};
     }
-    if (!is_connected(
-            notification.facets[notification.facets[facet_id].neighbourBC],
-            facet_id)) {
+    if (!is_connected(*facet->neighbourBC, facet.get())) {
       throw std::runtime_error{"Neighbour not connected to this facet"};
     }
 
-    if (facet_id == notification.facets[facet_id].neighbourCA) {
+    if (facet.get() == facet->neighbourCA) {
       throw std::runtime_error{"Neighbour of facet pointing to itself"};
     }
-    if (!is_connected(
-            notification.facets[notification.facets[facet_id].neighbourCA],
-            facet_id)) {
+    if (!is_connected(*facet->neighbourCA, facet.get())) {
       throw std::runtime_error{"Neighbour not connected to this facet"};
     }
   }

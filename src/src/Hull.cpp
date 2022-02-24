@@ -20,6 +20,12 @@ Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
   this->initThetraedron(A, B, C, D);
 };
 
+Hull::Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
+           const Coordinate &D, Observer &obs)
+    : observer(&obs) {
+  this->initThetraedron(A, B, C, D);
+}
+
 void Hull::setObserver(Observer &obs) { this->observer = &obs; }
 
 void Hull::recomputeNormal(Facet &subject) const {
@@ -195,14 +201,14 @@ Hull::VisibleCone Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
   const auto &vertices = vertices_and_faces.vertices;
 
   std::set<Facet *> visible_group = {};
-  std::list<Facet *> open_set = {
+  std::list<Facet *> facets_to_vist = {
       facets[starting_facet]
           .get()}; // this set contains facets we know that are visible, but
                    // whose neighbouring was not already visited
   std::vector<Edge> edges;
-  while (!open_set.empty()) {
-    auto *to_visit = open_set.front();
-    open_set.pop_front();
+  while (!facets_to_vist.empty()) {
+    auto *to_visit = facets_to_vist.front();
+    facets_to_vist.pop_front();
     if (visible_group.find(to_visit) != visible_group.end()) {
       continue;
     }
@@ -212,7 +218,7 @@ Hull::VisibleCone Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
       auto *neighbourAB = to_visit->neighbourAB;
       if (facet_point_distance(vertices, *neighbourAB, vertex_of_new_cone) >
           HULL_GEOMETRIC_TOLLERANCE) {
-        open_set.push_back(neighbourAB);
+        facets_to_vist.push_back(neighbourAB);
       } else {
         edges.push_back(Edge{to_visit->vertexA, to_visit->vertexB, neighbourAB,
                              find_connectivity_case(*neighbourAB, to_visit)});
@@ -223,7 +229,7 @@ Hull::VisibleCone Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
       auto *neighbourBC = to_visit->neighbourBC;
       if (facet_point_distance(vertices, *neighbourBC, vertex_of_new_cone) >
           HULL_GEOMETRIC_TOLLERANCE) {
-        open_set.push_back(neighbourBC);
+        facets_to_vist.push_back(neighbourBC);
       } else {
         edges.push_back(Edge{to_visit->vertexB, to_visit->vertexC, neighbourBC,
                              find_connectivity_case(*neighbourBC, to_visit)});
@@ -234,7 +240,7 @@ Hull::VisibleCone Hull::computeVisibleCone(const Coordinate &vertex_of_new_cone,
       auto *neighbourCA = to_visit->neighbourCA;
       if (facet_point_distance(vertices, *neighbourCA, vertex_of_new_cone) >
           HULL_GEOMETRIC_TOLLERANCE) {
-        open_set.push_back(neighbourCA);
+        facets_to_vist.push_back(neighbourCA);
       } else {
         edges.push_back(Edge{to_visit->vertexC, to_visit->vertexA, neighbourCA,
                              find_connectivity_case(*neighbourCA, to_visit)});
@@ -280,10 +286,10 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
     }
   } else {
     const std::size_t remaining_facets = changed_facets.size() + facets_to_add;
-
     auto it_changed = changed_facets.begin();
     std::advance(it_changed, remaining_facets);
 
+    removed_facets.reserve(-facets_to_add);
     std::for_each(it_changed, changed_facets.end(),
                   [&removed_facets,
                    &facets = vertices_and_faces.faces](hull::Facet *element) {
@@ -291,7 +297,7 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
                     removed_facet->neighbourAB = nullptr;
                     removed_facet->neighbourBC = nullptr;
                     removed_facet->neighbourCA = nullptr;
-                    removed_facets.emplace_back(removed_facet);
+                    removed_facets.emplace_back(std::move(removed_facet));
                     auto facets_it =
                         std::find_if(facets.begin(), facets.end(),
                                      [&element](const FacetPtr &facet_element) {
@@ -305,7 +311,7 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
 
   auto cone_facets = changed_facets;
   cone_facets.reserve(changed_facets.size() + added_facets.size());
-  for (const auto facet : added_facets) {
+  for (auto *facet : added_facets) {
     cone_facets.push_back(facet);
   }
 

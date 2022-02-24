@@ -47,13 +47,16 @@ public:
     const HullContext &context;
   };
 
-  virtual void hullChanges(const Notification &notification) = 0;
+  virtual void hullChanges(Notification &&notification) = 0;
 };
 
 class Hull {
 public:
   Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
        const Coordinate &D);
+
+  Hull(const Coordinate &A, const Coordinate &B, const Coordinate &C,
+       const Coordinate &D, Observer &obs);
 
   void setObserver(Observer &obs);
 
@@ -70,9 +73,6 @@ public:
 private:
   void initThetraedron(const Coordinate &A, const Coordinate &B,
                        const Coordinate &C, const Coordinate &D);
-
-  FacetPtr Hull::makeFacet(const std::size_t vertexA, const std::size_t vertexB,
-                           const std::size_t vertexC) const;
 
   void update_(const Coordinate &vertex_of_new_cone,
                const std::size_t starting_facet_for_expansion);

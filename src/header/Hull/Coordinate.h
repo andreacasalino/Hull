@@ -11,9 +11,9 @@
 
 namespace hull {
 struct Coordinate {
-  float x;
-  float y;
-  float z;
+  float x = 0;
+  float y = 0;
+  float z = 0;
 };
 
 constexpr Coordinate ORIGIN{0.f, 0.f, 0.f};

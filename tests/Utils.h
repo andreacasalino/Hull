@@ -6,19 +6,23 @@
 #include <string>
 
 namespace hull {
-void toObj(const std::vector<Coordinate> &vertices,
-           const std::vector<Facet> &facets, const std::string &fileName);
+void toObj(const std::vector<Coordinate> &vertices, const Facets &facets,
+           const std::string &fileName);
 
 bool check_normals(const std::vector<Coordinate> &vertices,
-                   const std::vector<Facet> &facets);
+                   const Facets &facets);
 
 class TrivialObserver : public Observer {
 public:
   TrivialObserver() = default;
 
   std::unique_ptr<Notification> last_notification;
-  void hullChanges(const Notification &notification) override {
-    last_notification = std::make_unique<Notification>(notification);
+  void hullChanges(Notification &&notification) override {
+    last_notification = std::make_unique<Notification>(
+        Notification{{}, {}, {}, notification.context});
+    last_notification->changed = notification.changed;
+    last_notification->added = notification.added;
+    last_notification->removed = std::move(notification.removed);
   };
 };
 
@@ -26,7 +30,7 @@ class StepsLogger : public hull::Observer {
 public:
   StepsLogger(const std::string &log_name) : log_name(log_name){};
 
-  void hullChanges(const Notification &notification) override;
+  void hullChanges(Notification &&notification) override;
 
   void check_updated_mesh(const Notification &notification) const;
 
