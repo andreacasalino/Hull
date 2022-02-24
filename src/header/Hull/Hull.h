@@ -29,6 +29,11 @@ using FacetPtr = std::unique_ptr<Facet>;
 using Facets = std::vector<FacetPtr>;
 using RemovedFacets = std::vector<std::unique_ptr<const Facet>>;
 
+struct HullContext {
+  std::vector<Coordinate> vertices;
+  std::vector<FacetPtr> faces;
+};
+
 class Observer {
 public:
   virtual ~Observer() = default;
@@ -39,8 +44,7 @@ public:
     std::vector<const Facet *> added;
     RemovedFacets removed;
 
-    // context
-    const std::vector<Coordinate> &vertices;
+    const HullContext &context;
   };
 
   virtual void hullChanges(const Notification &notification) = 0;
@@ -58,8 +62,10 @@ public:
   void update(const Coordinate &vertex_of_new_cone,
               const std::size_t starting_facet_for_expansion);
 
-  const std::vector<Coordinate> &getVertices() const { return this->vertices; };
-  const Facets &getFacets() const { return this->facets; };
+  const std::vector<Coordinate> &getVertices() const {
+    return vertices_and_faces.vertices;
+  };
+  const Facets &getFacets() const { return vertices_and_faces.faces; };
 
 private:
   void initThetraedron(const Coordinate &A, const Coordinate &B,
@@ -80,9 +86,9 @@ private:
   VisibleCone computeVisibleCone(const Coordinate &vertex_of_new_cone,
                                  const std::size_t starting_facet);
 
-  std::vector<Coordinate> vertices;
-  Facets facets;
+  HullContext vertices_and_faces;
   Coordinate Mid_point;
+
   Observer *observer = nullptr;
 };
 } // namespace hull
