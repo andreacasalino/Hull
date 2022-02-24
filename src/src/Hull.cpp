@@ -281,7 +281,9 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
   if (facets_to_add >= 0) {
     added_facets.reserve(facets_to_add);
     for (int k = 0; k < facets_to_add; ++k) {
-      auto *added_facet = vertices_and_faces.faces.emplace_back().get();
+      auto *added_facet =
+          vertices_and_faces.faces.emplace_back(std::make_unique<Facet>())
+              .get();
       added_facets.push_back(added_facet);
     }
   } else {
@@ -320,7 +322,7 @@ void Hull::update_(const Coordinate &vertex_of_new_cone,
   vertices_and_faces.vertices.push_back(vertex_of_new_cone);
   std::size_t edge_index = 0;
   for (const auto &edge : visibility_cone.edges) {
-    auto *facet_to_build = changed_facets[edge_index];
+    auto *facet_to_build = cone_facets[edge_index];
     facet_to_build->vertexA = edge.vertex_first;
     facet_to_build->vertexB = edge.vertex_second;
     facet_to_build->vertexC = new_vertex_index;
