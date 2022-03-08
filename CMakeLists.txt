@@ -19,3 +19,9 @@ set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
 
 project(HullUtils)
 add_subdirectory(src)
+
+option(BUILD_HULL_TESTS "" OFF)
+if(BUILD_HULL_TESTS)
+	project(Hull-Tests)
+    add_subdirectory(tests)
+endif()
