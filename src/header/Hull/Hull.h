@@ -8,8 +8,10 @@
 #pragma once
 
 #include <Hull/Coordinate.h>
-#include <cmath>
-#include <memory>
+
+#include <deque>
+#include <list>
+#include <unordered_set>
 #include <vector>
 
 namespace hull {
@@ -18,20 +20,17 @@ struct Facet {
   std::size_t vertexB;
   std::size_t vertexC;
 
-  Facet *neighbourAB = nullptr;
-  Facet *neighbourBC = nullptr;
-  Facet *neighbourCA = nullptr;
+  Facet *neighbourAB;
+  Facet *neighbourBC;
+  Facet *neighbourCA;
 
   Coordinate normal; // outer normal
 };
-using FacetPtr = std::unique_ptr<Facet>;
-
-using Facets = std::vector<FacetPtr>;
-using RemovedFacets = std::vector<std::unique_ptr<const Facet>>;
 
 struct HullContext {
-  std::vector<Coordinate> vertices;
-  std::vector<FacetPtr> faces;
+  std::deque<Coordinate> vertices;
+  std::unordered_set<Facet *> faces;
+  Coordinate internalPoint;
 };
 
 class Observer {
@@ -39,15 +38,37 @@ public:
   virtual ~Observer() = default;
 
   struct Notification {
-    std::vector<const Facet *> changed;
+    Notification(const HullContext &context) : context{context} {}
 
+    std::vector<const Facet *> changed;
     std::vector<const Facet *> added;
-    RemovedFacets removed;
+    std::vector<const Facet *> removed;
 
     const HullContext &context;
   };
 
-  virtual void hullChanges(Notification &&notification) = 0;
+  virtual void hullChanges(const Notification &notification) = 0;
+};
+
+class FacetAllocator {
+public:
+  FacetAllocator();
+
+  Facet *getFacet();
+
+  void markAsRecyclable(Facet *facet) { outstanding.push_back(facet); }
+
+private:
+  struct Buffer {
+    Buffer(std::size_t capacity);
+    ~Buffer();
+
+    std::size_t size = 0;
+    const std::size_t capacity;
+    char *buffer;
+  };
+  std::list<Buffer> buffers;
+  std::deque<Facet *> outstanding;
 };
 
 class Hull {
@@ -63,31 +84,22 @@ public:
   void update(const Coordinate &vertex_of_new_cone);
 
   void update(const Coordinate &vertex_of_new_cone,
-              const std::size_t starting_facet_for_expansion);
+              Facet *starting_facet_for_expansion);
 
-  const std::vector<Coordinate> &getVertices() const {
-    return vertices_and_faces.vertices;
-  };
-  const Facets &getFacets() const { return vertices_and_faces.faces; };
+  const auto &getContext() const { return context; }
 
 private:
   void initThetraedron(const Coordinate &A, const Coordinate &B,
                        const Coordinate &C, const Coordinate &D);
 
   void update_(const Coordinate &vertex_of_new_cone,
-               const std::size_t starting_facet_for_expansion);
+               Facet *starting_facet_for_expansion);
 
-  void recomputeNormal(Facet &subject) const;
+  Facet *makeFacet(std::size_t vertexA, std::size_t vertexB,
+                   std::size_t vertexC);
 
-  FacetPtr makeFacet(const std::size_t vertexA, const std::size_t vertexB,
-                     const std::size_t vertexC) const;
-
-  struct VisibleCone;
-  VisibleCone computeVisibleCone(const Coordinate &vertex_of_new_cone,
-                                 const std::size_t starting_facet);
-
-  HullContext vertices_and_faces;
-  Coordinate Mid_point;
+  HullContext context;
+  FacetAllocator allocator;
 
   Observer *observer = nullptr;
 };

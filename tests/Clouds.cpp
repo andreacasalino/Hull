@@ -34,5 +34,5 @@ TEST_CASE("Sphere clouds") {
 
   auto hull = fill_hull(vertices, &logger);
 
-  CHECK(are_same(hull.getVertices(), vertices));
+  CHECK(same_vertices(hull.getContext().vertices, vertices));
 }

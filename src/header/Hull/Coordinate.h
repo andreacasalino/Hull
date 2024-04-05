@@ -16,7 +16,7 @@ struct Coordinate {
   float z = 0;
 };
 
-constexpr Coordinate ORIGIN{0.f, 0.f, 0.f};
+static const Coordinate ORIGIN{0.f, 0.f, 0.f};
 
 inline void diff(Coordinate &res, const Coordinate &a, const Coordinate &b) {
   res.x = a.x - b.x;

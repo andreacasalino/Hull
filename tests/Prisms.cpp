@@ -34,7 +34,7 @@ TEST_CASE("Prisms") {
 
     auto hull = fill_hull(vertices, &logger);
 
-    CHECK(are_same(hull.getVertices(), vertices));
+    CHECK(same_vertices(hull.getContext().vertices, vertices));
   }
 
   SECTION("small height") {
@@ -48,6 +48,6 @@ TEST_CASE("Prisms") {
 
     auto hull = fill_hull(vertices, &logger);
 
-    CHECK(are_same(hull.getVertices(), vertices));
+    CHECK(same_vertices(hull.getContext().vertices, vertices));
   }
 }

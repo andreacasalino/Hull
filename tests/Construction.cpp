@@ -14,10 +14,10 @@ TEST_CASE("Hull construction") {
 
     hull::Hull hull(vertices[0], vertices[1], vertices[2], vertices[3]);
 
-    hull::toObj(hull.getVertices(), hull.getFacets(),
-                generate_obj_log_name("Thetraedron"));
+    hull::toObj(hull.getContext(),
+                hull::Logger::get().makeLogfileName("HullConstruction"));
 
-    CHECK(hull::check_normals(hull.getVertices(), hull.getFacets()));
+    CHECK(hull::check_normals(hull.getContext()));
   }
 
   SECTION("expected to throw tests") {
