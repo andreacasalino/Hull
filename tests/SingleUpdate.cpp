@@ -4,8 +4,6 @@
 #include "Utils.h"
 #include <Hull/Coordinate.h>
 
-bool are_similar(const hull::Coordinate &a, const hull::Coordinate &b);
-
 TEST_CASE("Hull single udpate") {
   std::vector<hull::Coordinate> initial_vertices = {
       {1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, -1}};
@@ -24,8 +22,8 @@ TEST_CASE("Hull single udpate") {
     CHECK(obs.last_notification->changed.size() == 1);
     CHECK(obs.last_notification->added.size() == 2);
     CHECK(obs.last_notification->removed.empty());
-    CHECK(hull.getVertices().size() == 5);
-    CHECK(hull.getFacets().size() == 6);
+    CHECK(hull.getContext().vertices.size() == 5);
+    CHECK(hull.getContext().faces.size() == 6);
   }
 
   SECTION("Two visible facets") {
@@ -42,7 +40,7 @@ TEST_CASE("Hull single udpate") {
     CHECK(obs.last_notification->changed.size() == 2);
     CHECK(obs.last_notification->added.size() == 2);
     CHECK(obs.last_notification->removed.empty());
-    CHECK(hull.getVertices().size() == 5);
-    CHECK(hull.getFacets().size() == 6);
+    CHECK(hull.getContext().vertices.size() == 5);
+    CHECK(hull.getContext().faces.size() == 6);
   }
 }
