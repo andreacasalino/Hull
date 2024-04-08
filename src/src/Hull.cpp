@@ -190,9 +190,8 @@ void Hull::update(const Coordinate &vertex_of_new_cone) {
 void Hull::update(const Coordinate &vertex_of_new_cone,
                   Facet *starting_facet_for_expansion) {
   const auto &faces = context.faces;
-  if (HULL_GEOMETRIC_TOLLERANCE <=
-          facet_point_distance(*starting_facet_for_expansion,
-                               vertex_of_new_cone, context) ||
+  if (facet_point_distance(*starting_facet_for_expansion, vertex_of_new_cone,
+                           context) < HULL_GEOMETRIC_TOLLERANCE ||
       context.faces.find(starting_facet_for_expansion) == context.faces.end()) {
     throw Error{"The specified starting facet is not valid"};
   }
